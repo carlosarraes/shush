@@ -68,10 +68,8 @@ jobs:
           # Copy and rename binary
           cp shush "${BINARY_NAME}"
           
-          # For macOS x86_64, also provide a generic "shush" binary
-          if [ "${{ matrix.platform.os }}" = "darwin" ] && [ "${{ matrix.platform.arch }}" = "x86_64" ]; then
-            cp shush "shush"
-          fi
+          # For macOS x86_64, we already have "shush" - no need to copy
+          # The artifact upload will pick up both files
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
