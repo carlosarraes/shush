@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/alecthomas/kong"
+	"github.com/fatih/color"
 )
 
 type CLI struct {
@@ -51,7 +54,7 @@ func main() {
 	kong.Parse(&cli, kong.Description("Remove comments from source code files"))
 
 	if cli.Version {
-		fmt.Println("shush version 0.0.1")
+		fmt.Println("shush version 0.0.2")
 		return
 	}
 
@@ -87,12 +90,11 @@ func processFile(cli CLI) error {
 		}
 	}
 
-	sedCmd := buildSedCommand(language, cli)
-	
 	if cli.DryRun {
-		fmt.Printf("Would execute: %s\n", sedCmd)
-		return nil
+		return showPreview(cli.File, language, cli)
 	}
+	
+	sedCmd := buildSedCommand(language, cli)
 
 	if cli.Backup {
 		if err := createBackup(cli.File); err != nil {
@@ -225,5 +227,80 @@ func createBackup(filename string) error {
 		}
 	}
 	
+	return nil
+}
+
+func showPreview(filename string, language Language, cli CLI) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	red := color.New(color.FgRed, color.CrossedOut)
+	green := color.New(color.FgGreen)
+	gray := color.New(color.FgHiBlack)
+	yellow := color.New(color.FgYellow)
+
+	scanner := bufio.NewScanner(file)
+	lineNum := 0
+	deletedCount := 0
+	keptCount := 0
+
+	// Compile regex patterns once
+	var lineRegex, blockStartRegex, blockEndRegex *regexp.Regexp
+	if language.LineComment != "" && !cli.Block {
+		escaped := regexp.QuoteMeta(language.LineComment)
+		lineRegex = regexp.MustCompile(fmt.Sprintf(`^\s*%s|%s.*$`, escaped, escaped))
+	}
+	if language.BlockComment != nil && !cli.Inline {
+		blockStartRegex = regexp.MustCompile(regexp.QuoteMeta(language.BlockComment.Start))
+		blockEndRegex = regexp.MustCompile(regexp.QuoteMeta(language.BlockComment.End))
+	}
+
+	fmt.Printf("\n%s %s\n\n", yellow.Sprint("Preview:"), filename)
+
+	inBlockComment := false
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		shouldDelete := false
+
+		// Check if line should be deleted
+		if inBlockComment && blockEndRegex != nil {
+			shouldDelete = true
+			if blockEndRegex.MatchString(line) {
+				inBlockComment = false
+			}
+		} else if blockStartRegex != nil && blockStartRegex.MatchString(line) {
+			shouldDelete = true
+			if !blockEndRegex.MatchString(line) {
+				inBlockComment = true
+			}
+		} else if lineRegex != nil && lineRegex.MatchString(line) {
+			shouldDelete = true
+		} else if strings.TrimSpace(line) == "" {
+			shouldDelete = true
+		}
+
+		// Print the line with appropriate formatting
+		lineNumStr := gray.Sprintf("%4d", lineNum)
+		if shouldDelete {
+			deletedCount++
+			fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(line))
+		} else {
+			keptCount++
+			fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint(" "), line)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	fmt.Printf("\n%s\n", strings.Repeat("-", 50))
+	fmt.Printf("%s %d lines would be removed\n", red.Sprint("✗"), deletedCount)
+	fmt.Printf("%s %d lines would be kept\n\n", green.Sprint("✓"), keptCount)
+
 	return nil
 }

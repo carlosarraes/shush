@@ -7,7 +7,14 @@
       "Bash(find:*)",
       "Bash(mkdir:*)",
       "Bash(chmod:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git push:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh release view:*)",
+      "Bash(gh repo edit:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
