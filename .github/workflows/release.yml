@@ -57,7 +57,7 @@ jobs:
           CGO_ENABLED: 0
           CC: ${{ matrix.platform.arch == 'aarch64' && matrix.platform.os == 'linux' && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
-          go build -ldflags="-w -s" -o shush .
+          go build -ldflags="-w -s" -o shush ./cmd/shush
 
       - name: Prepare binary
         shell: bash

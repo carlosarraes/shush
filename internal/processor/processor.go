@@ -1,87 +1,106 @@
-package main
+package processor
 
 import (
 	"bufio"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/alecthomas/kong"
+	"github.com/carlosarraes/shush/internal/types"
 	"github.com/fatih/color"
 )
 
-type CLI struct {
-	File    string `arg:"" name:"file" help:"Source code file to process"`
-	Inline  bool   `help:"Remove only line comments"`
-	Block   bool   `help:"Remove only block comments"`
-	DryRun  bool   `help:"Show what would be removed without making changes"`
-	Backup  bool   `help:"Create backup file before modification"`
-	Verbose bool   `help:"Show detailed output"`
-	Version bool   `help:"Show version information"`
+type Processor struct {
+	cli types.CLI
 }
 
-type Language struct {
-	LineComment  string
-	BlockComment *BlockComment
+func New(cli types.CLI) *Processor {
+	return &Processor{cli: cli}
 }
 
-type BlockComment struct {
-	Start string
-	End   string
-}
-
-var languageMap = map[string]Language{
-	"lua":  {LineComment: "--"},
-	"py":   {LineComment: "#"},
-	"sh":   {LineComment: "#"},
-	"js":   {LineComment: "//", BlockComment: &BlockComment{Start: "/*", End: "*/"}},
-	"ts":   {LineComment: "//", BlockComment: &BlockComment{Start: "/*", End: "*/"}},
-	"go":   {LineComment: "//", BlockComment: &BlockComment{Start: "/*", End: "*/"}},
-	"c":    {LineComment: "//", BlockComment: &BlockComment{Start: "/*", End: "*/"}},
-	"cpp":  {LineComment: "//", BlockComment: &BlockComment{Start: "/*", End: "*/"}},
-	"java": {LineComment: "//", BlockComment: &BlockComment{Start: "/*", End: "*/"}},
-	"rb":   {LineComment: "#"},
-	"pl":   {LineComment: "#"},
-	"yml":  {LineComment: "#"},
-	"yaml": {LineComment: "#"},
-}
-
-func main() {
-	var cli CLI
-	kong.Parse(&cli, kong.Description("Remove comments from source code files"))
-
-	if cli.Version {
-		fmt.Println("shush version 0.0.2")
-		return
+func (p *Processor) Process() error {
+	info, err := os.Stat(p.cli.Path)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("path not found: %s", p.cli.Path)
 	}
-
-	if cli.Inline && cli.Block {
-		fmt.Fprintf(os.Stderr, "Error: --inline and --block flags are mutually exclusive\n")
-		os.Exit(1)
-	}
-
-	if err := processFile(cli); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func processFile(cli CLI) error {
-	if _, err := os.Stat(cli.File); os.IsNotExist(err) {
-		return fmt.Errorf("file not found: %s", cli.File)
-	}
-
-	language, err := detectLanguage(cli.File)
 	if err != nil {
 		return err
 	}
 
-	if cli.Verbose {
-		fmt.Printf("Processing %s...\n", cli.File)
-		fmt.Printf("Detected language: %s\n", getLanguageName(cli.File))
+	if info.IsDir() {
+		return p.processDirectory(p.cli.Path)
+	}
+	
+	return p.processFile(p.cli.Path)
+}
+
+func (p *Processor) processDirectory(dirPath string) error {
+	var files []string
+	
+	if p.cli.Recursive {
+		err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.IsDir() && IsSupportedFile(path) {
+				files = append(files, path)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		entries, err := os.ReadDir(dirPath)
+		if err != nil {
+			return err
+		}
+		
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				fullPath := filepath.Join(dirPath, entry.Name())
+				if IsSupportedFile(fullPath) {
+					files = append(files, fullPath)
+				}
+			}
+		}
+	}
+
+	if len(files) == 0 {
+		return fmt.Errorf("no supported files found in directory: %s", dirPath)
+	}
+
+	if p.cli.Verbose {
+		fmt.Printf("Found %d supported files to process\n", len(files))
+	}
+
+	for _, file := range files {
+		if p.cli.Verbose {
+			fmt.Printf("Processing: %s\n", file)
+		}
+		
+		if err := p.processFile(file); err != nil {
+			fmt.Fprintf(os.Stderr, "Error processing %s: %v\n", file, err)
+			continue
+		}
+	}
+
+	return nil
+}
+
+func (p *Processor) processFile(filename string) error {
+	language, err := DetectLanguage(filename)
+	if err != nil {
+		return err
+	}
+
+	if p.cli.Verbose {
+		fmt.Printf("Processing %s...\n", filename)
+		fmt.Printf("Detected language: %s\n", GetLanguageName(filename))
 		if language.BlockComment != nil {
 			fmt.Printf("Comment types: line (%s), block (%s %s)\n", 
 				language.LineComment, language.BlockComment.Start, language.BlockComment.End)
@@ -90,88 +109,47 @@ func processFile(cli CLI) error {
 		}
 	}
 
-	if cli.DryRun {
-		return showPreview(cli.File, language, cli)
+	if p.cli.DryRun {
+		return p.showPreview(filename, language)
 	}
 	
-	sedCmd := buildSedCommand(language, cli)
+	sedCmd := p.buildSedCommand(language)
 
-	if cli.Backup {
-		if err := createBackup(cli.File); err != nil {
+	if p.cli.Backup {
+		if err := p.createBackup(filename); err != nil {
 			return fmt.Errorf("failed to create backup: %v", err)
 		}
-		if cli.Verbose {
-			fmt.Printf("✓ Backup created: %s.bak\n", cli.File)
+		if p.cli.Verbose {
+			fmt.Printf("✓ Backup created: %s.bak\n", filename)
 		}
 	}
 
-	if cli.Verbose {
+	if p.cli.Verbose {
 		fmt.Printf("Executing: %s\n", sedCmd)
 	}
 
-	cmd := exec.Command("sed", "-i", sedCmd, cli.File)
+	cmd := exec.Command("sed", "-i", sedCmd, filename)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("sed command failed: %v", err)
 	}
 
-	if cli.Verbose {
-		fmt.Printf("✓ Comments removed from %s\n", cli.File)
+	if p.cli.Verbose {
+		fmt.Printf("✓ Comments removed from %s\n", filename)
 	}
 
 	return nil
 }
 
-func detectLanguage(filename string) (Language, error) {
-	ext := strings.ToLower(filepath.Ext(filename))
-	if ext == "" {
-		return Language{}, fmt.Errorf("no file extension found")
-	}
-
-	ext = strings.TrimPrefix(ext, ".")
-	
-	if language, ok := languageMap[ext]; ok {
-		return language, nil
-	}
-
-	return Language{}, fmt.Errorf("unsupported file extension: %s", ext)
-}
-
-func getLanguageName(filename string) string {
-	ext := strings.ToLower(filepath.Ext(filename))
-	ext = strings.TrimPrefix(ext, ".")
-	
-	names := map[string]string{
-		"lua":  "Lua",
-		"py":   "Python",
-		"sh":   "Shell",
-		"js":   "JavaScript",
-		"ts":   "TypeScript",
-		"go":   "Go",
-		"c":    "C",
-		"cpp":  "C++",
-		"java": "Java",
-		"rb":   "Ruby",
-		"pl":   "Perl",
-		"yml":  "YAML",
-		"yaml": "YAML",
-	}
-	
-	if name, ok := names[ext]; ok {
-		return name
-	}
-	return ext
-}
-
-func buildSedCommand(language Language, cli CLI) string {
+func (p *Processor) buildSedCommand(language types.Language) string {
 	var commands []string
 	
-	if !cli.Block && language.LineComment != "" {
+	if !p.cli.Block && language.LineComment != "" {
 		escaped := escapeForSed(language.LineComment)
 		commands = append(commands, fmt.Sprintf("/^[[:space:]]*%s/d", escaped))
 		commands = append(commands, fmt.Sprintf("s/%s.*//g", escaped))
 	}
 	
-	if !cli.Inline && language.BlockComment != nil {
+	if !p.cli.Inline && language.BlockComment != nil {
 		startEscaped := escapeForSed(language.BlockComment.Start)
 		endEscaped := escapeForSed(language.BlockComment.End)
 		commands = append(commands, fmt.Sprintf("s/%s.*%s//g", startEscaped, endEscaped))
@@ -197,7 +175,7 @@ func escapeForSed(pattern string) string {
 	return replacer.Replace(pattern)
 }
 
-func createBackup(filename string) error {
+func (p *Processor) createBackup(filename string) error {
 	backupName := filename + ".bak"
 	
 	srcFile, err := os.Open(filename)
@@ -230,7 +208,7 @@ func createBackup(filename string) error {
 	return nil
 }
 
-func showPreview(filename string, language Language, cli CLI) error {
+func (p *Processor) showPreview(filename string, language types.Language) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -249,11 +227,11 @@ func showPreview(filename string, language Language, cli CLI) error {
 
 	// Compile regex patterns once
 	var lineRegex, blockStartRegex, blockEndRegex *regexp.Regexp
-	if language.LineComment != "" && !cli.Block {
+	if language.LineComment != "" && !p.cli.Block {
 		escaped := regexp.QuoteMeta(language.LineComment)
 		lineRegex = regexp.MustCompile(fmt.Sprintf(`^\s*%s|%s.*$`, escaped, escaped))
 	}
-	if language.BlockComment != nil && !cli.Inline {
+	if language.BlockComment != nil && !p.cli.Inline {
 		blockStartRegex = regexp.MustCompile(regexp.QuoteMeta(language.BlockComment.Start))
 		blockEndRegex = regexp.MustCompile(regexp.QuoteMeta(language.BlockComment.End))
 	}
