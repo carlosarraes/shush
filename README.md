@@ -20,6 +20,12 @@ Download the binary for your platform from the [releases page](https://github.co
 # Remove all comments from a file
 shush file.py
 
+# Remove all comments from a directory
+shush src/
+
+# Process directories recursively
+shush src/ --recursive
+
 # Remove only line comments (// or #)
 shush file.js --inline
 
@@ -34,6 +40,9 @@ shush config.lua --backup
 
 # Verbose output
 shush app.go --verbose
+
+# Combine flags for complex operations
+shush src/ --recursive --inline --dry-run --verbose
 ```
 
 ## Supported Languages
@@ -54,13 +63,15 @@ shush app.go --verbose
 ## Options
 
 ```
---inline     Remove only line comments
---block      Remove only block comments
---dry-run    Show what would be removed without making changes
---backup     Create backup file before modification
---verbose    Show detailed output
---version    Show version information
---help       Show help message
+--inline       Remove only line comments
+--block        Remove only block comments
+-r, --recursive Process directories recursively
+--dry-run      Show what would be removed without making changes
+--backup       Create backup files before modification
+--verbose      Show detailed output
+--version      Show version information
+--llm          Show LLM-friendly usage guide
+--help         Show help message
 ```
 
 ## Examples
@@ -84,6 +95,18 @@ shush app.js --inline
 
 # Remove only block comments, preserve line comments
 shush app.js --block
+```
+
+### Directory Processing
+```bash
+# Process all supported files in a directory
+shush src/ --verbose
+
+# Process directories recursively
+shush . --recursive --dry-run
+
+# Process only specific comment types in entire project
+shush . --recursive --inline --backup
 ```
 
 ### Backup and Preview

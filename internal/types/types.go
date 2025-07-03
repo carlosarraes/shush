@@ -10,6 +10,7 @@ type CLI struct {
 	DryRun    bool   `help:"Show what would be removed without making changes"`
 	Backup    bool   `help:"Create backup files before modification"`
 	Verbose   bool   `help:"Show detailed output"`
+	LLM       bool   `help:"Show LLM-friendly usage guide"`
 	Version   kong.VersionFlag `help:"Show version information"`
 }
 
