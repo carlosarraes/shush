@@ -1,0 +1,89 @@
+name: Build and Release
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform.os }}-${{ matrix.platform.arch }}
+    runs-on: ${{ matrix.platform.os-type }}
+    strategy:
+      matrix:
+        platform:
+          - os: linux
+            os-type: ubuntu-latest
+            arch: x86_64
+            target: x86_64-unknown-linux-musl
+          - os: darwin
+            os-type: macos-latest
+            arch: x86_64
+            target: x86_64-apple-darwin
+          - os: linux
+            os-type: ubuntu-latest
+            arch: aarch64
+            target: aarch64-unknown-linux-musl
+          - os: darwin
+            os-type: macos-latest
+            arch: aarch64
+            target: aarch64-apple-darwin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install cross-compilation tools
+        run: |
+          if [ "${{ matrix.platform.os }}" = "linux" ]; then
+            if [ "${{ matrix.platform.arch }}" = "aarch64" ]; then
+              sudo apt-get update
+              sudo apt-get install -y gcc-aarch64-linux-gnu
+            fi
+          fi
+
+      - name: Build release binary
+        env:
+          GOOS: ${{ matrix.platform.os == 'darwin' && 'darwin' || 'linux' }}
+          GOARCH: ${{ matrix.platform.arch == 'x86_64' && 'amd64' || 'arm64' }}
+          CGO_ENABLED: 0
+          CC: ${{ matrix.platform.arch == 'aarch64' && matrix.platform.os == 'linux' && 'aarch64-linux-gnu-gcc' || '' }}
+        run: |
+          go build -ldflags="-w -s" -o shush .
+
+      - name: Prepare binary
+        shell: bash
+        id: prepare_binary
+        run: |
+          mkdir -p dist
+          
+          # Set binary name based on OS and architecture
+          BINARY_NAME="shush-${{ matrix.platform.os }}-${{ matrix.platform.arch }}"
+          
+          # Copy and rename binary
+          cp shush "dist/${BINARY_NAME}"
+          
+          # For macOS x86_64, also provide a generic "shush" binary
+          if [ "${{ matrix.platform.os }}" = "darwin" ] && [ "${{ matrix.platform.arch }}" = "x86_64" ]; then
+            cp shush "dist/shush"
+            echo "asset_paths=dist/shush,dist/${BINARY_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "asset_paths=dist/${BINARY_NAME}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload binaries to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.prepare_binary.outputs.asset_paths }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

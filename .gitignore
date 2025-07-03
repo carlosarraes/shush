@@ -1,0 +1,26 @@
+# Binaries
+shush
+*.exe
+
+# Test files
+test.*
+*.bak
+
+# Go build cache
+*.o
+*.a
+*.so
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
