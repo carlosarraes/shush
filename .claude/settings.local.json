@@ -14,7 +14,9 @@
       "Bash(gh run list:*)",
       "Bash(gh release view:*)",
       "Bash(gh repo edit:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(gh run view:*)",
+      "Bash(gemini:*)"
     ],
     "deny": []
   }
