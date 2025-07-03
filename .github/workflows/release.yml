@@ -61,28 +61,45 @@ jobs:
 
       - name: Prepare binary
         shell: bash
-        id: prepare_binary
         run: |
-          mkdir -p dist
-          
           # Set binary name based on OS and architecture
           BINARY_NAME="shush-${{ matrix.platform.os }}-${{ matrix.platform.arch }}"
           
           # Copy and rename binary
-          cp shush "dist/${BINARY_NAME}"
+          cp shush "${BINARY_NAME}"
           
           # For macOS x86_64, also provide a generic "shush" binary
           if [ "${{ matrix.platform.os }}" = "darwin" ] && [ "${{ matrix.platform.arch }}" = "x86_64" ]; then
-            cp shush "dist/shush"
-            echo "asset_paths=dist/shush,dist/${BINARY_NAME}" >> $GITHUB_OUTPUT
-          else
-            echo "asset_paths=dist/${BINARY_NAME}" >> $GITHUB_OUTPUT
+            cp shush "shush"
           fi
 
-      - name: Upload binaries to release
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: shush-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
+          path: shush*
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -name "shush*" -type f -exec cp {} release-assets/ \;
+          ls -la release-assets/
+
+      - name: Create release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ steps.prepare_binary.outputs.asset_paths }}
+          files: release-assets/*
           fail_on_unmatched_files: true
           generate_release_notes: true
         env:
