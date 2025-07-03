@@ -18,7 +18,10 @@
       "Bash(gh run view:*)",
       "Bash(gemini:*)",
       "Bash(gh release delete:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(ls:*)",
+      "Bash(cp:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

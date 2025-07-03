@@ -145,18 +145,22 @@ func (p *Processor) buildSedCommand(language types.Language) string {
 	
 	if !p.cli.Block && language.LineComment != "" {
 		escaped := escapeForSed(language.LineComment)
+		// Delete lines that are only comments (optionally with whitespace)
 		commands = append(commands, fmt.Sprintf("/^[[:space:]]*%s/d", escaped))
+		// Remove inline comments but keep the line
 		commands = append(commands, fmt.Sprintf("s/%s.*//g", escaped))
 	}
 	
 	if !p.cli.Inline && language.BlockComment != nil {
 		startEscaped := escapeForSed(language.BlockComment.Start)
 		endEscaped := escapeForSed(language.BlockComment.End)
+		// Remove block comments on same line
 		commands = append(commands, fmt.Sprintf("s/%s.*%s//g", startEscaped, endEscaped))
+		// Remove multi-line block comments
 		commands = append(commands, fmt.Sprintf("/%s/,/%s/d", startEscaped, endEscaped))
 	}
 	
-	commands = append(commands, "/^[[:space:]]*$/d")
+	// Don't remove empty lines - preserve original file structure
 	
 	return strings.Join(commands, "; ")
 }
@@ -257,9 +261,8 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 			}
 		} else if lineRegex != nil && lineRegex.MatchString(line) {
 			shouldDelete = true
-		} else if strings.TrimSpace(line) == "" {
-			shouldDelete = true
 		}
+		// Don't delete empty lines - preserve original file structure
 
 		// Print the line with appropriate formatting
 		lineNumStr := gray.Sprintf("%4d", lineNum)
