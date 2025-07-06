@@ -11,7 +11,7 @@ Shush is a CLI tool written in Go that removes comments from source code files w
 - **Claude Code integration**: Automatic comment cleanup via hooks (✅ available now)
 - **Smart comment preservation**: Configurable patterns via .shush.toml with wildcard support
 - **String-aware parsing**: Preserves URLs and strings containing comment markers
-- **Dual processing modes**: Traditional sed-based + in-memory line-based for git operations
+- **Unified in-memory processing**: String-aware parsing with comment preservation for all modes
 
 ## Build and Development Commands
 
@@ -54,7 +54,7 @@ make dev
 ### Project Structure
 - `cmd/shush/main.go` - Entry point, CLI parsing with kong, version management, LLM guide, hook commands
 - `internal/types/types.go` - Core type definitions (CLI struct with hook flags, Language struct, BlockComment)
-- `internal/processor/processor.go` - Main processing logic, routing between sed and git modes
+- `internal/processor/processor.go` - Main processing logic with unified in-memory processing
 - `internal/processor/git_processor.go` - Git-aware processing with line-based comment removal + config integration
 - `internal/processor/languages.go` - Language detection and mapping (file extension → comment syntax)
 - `internal/git/` - Git operations: repo detection, diff parsing, line range extraction
@@ -76,14 +76,14 @@ make dev
    - String-aware comment removal with pattern-based preservation
 5. **Traditional Mode** (file/directory paths):
    - Language detection from file extension
-   - Sed command generation and execution
+   - In-memory line-based processing with config integration
    - Directory scanning (recursive if `-r` flag)
 6. **Output**: Color-coded preview with preserved comment indicators, totals summary, or file modification
 
 ### Key Design Principles
-- **Dual Processing Architecture**: 
-  - Traditional: sed-based for entire files/directories
-  - Git-aware: in-memory line-based for surgical precision with config integration
+- **Unified Processing Architecture**: 
+  - All modes: in-memory line-based processing with string-aware parsing
+  - Git-aware: surgical precision targeting only changed lines with config integration
 - **String-Aware Processing**: 
   - Preserves URLs and strings containing comment markers (e.g., `"https://example.com"`)
   - Context-aware parsing respects quote boundaries and escaping

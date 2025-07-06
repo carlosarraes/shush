@@ -1,6 +1,6 @@
 # shush 🤫
 
-Remove comments from source code files blazingly fast using sed under the hood. Features git-aware processing, smart comment preservation, and Claude Code integration.
+Remove comments from source code files blazingly fast using in-memory processing. Features git-aware processing, smart comment preservation, and Claude Code integration.
 
 ## Installation
 
@@ -235,9 +235,9 @@ shush uses optimized processing to remove comments while preserving code structu
 - **String-Aware Parsing**: Preserves URLs and strings that contain comment markers (e.g., `"https://example.com"`)
 - **Git-Aware Processing**: Only processes changed lines for surgical precision
 - **Smart Preservation**: Configurable comment preservation via `.shush.toml` patterns
-- **Dual Processing Modes**: 
-  - Traditional sed-based for files/directories
-  - Line-based processing for git operations with comment preservation
+- **Unified In-Memory Processing**: 
+  - String-aware parsing for all file operations
+  - Line-based processing with comment preservation for all modes
 - **Claude Code Integration**: Automatic cleanup via PostToolUse hooks
 
 ## Building from Source
@@ -250,7 +250,6 @@ go build -o shush
 
 ## Requirements
 
-- sed (available on all Unix-like systems)
 - Linux or macOS (x86_64 or ARM64)
 
 ## License
