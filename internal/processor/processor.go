@@ -23,6 +23,12 @@ func New(cli types.CLI) *Processor {
 }
 
 func (p *Processor) Process() error {
+
+	if p.cli.ChangesOnly || p.cli.Staged || p.cli.Unstaged {
+		return p.processGitChanges()
+	}
+
+
 	info, err := os.Stat(p.cli.Path)
 	if os.IsNotExist(err) {
 		return fmt.Errorf("path not found: %s", p.cli.Path)
@@ -34,13 +40,13 @@ func (p *Processor) Process() error {
 	if info.IsDir() {
 		return p.processDirectory(p.cli.Path)
 	}
-	
+
 	return p.processFile(p.cli.Path)
 }
 
 func (p *Processor) processDirectory(dirPath string) error {
 	var files []string
-	
+
 	if p.cli.Recursive {
 		err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -59,7 +65,7 @@ func (p *Processor) processDirectory(dirPath string) error {
 		if err != nil {
 			return err
 		}
-		
+
 		for _, entry := range entries {
 			if !entry.IsDir() {
 				fullPath := filepath.Join(dirPath, entry.Name())
@@ -82,7 +88,7 @@ func (p *Processor) processDirectory(dirPath string) error {
 		if p.cli.Verbose {
 			fmt.Printf("Processing: %s\n", file)
 		}
-		
+
 		if err := p.processFile(file); err != nil {
 			fmt.Fprintf(os.Stderr, "Error processing %s: %v\n", file, err)
 			continue
@@ -102,7 +108,7 @@ func (p *Processor) processFile(filename string) error {
 		fmt.Printf("Processing %s...\n", filename)
 		fmt.Printf("Detected language: %s\n", GetLanguageName(filename))
 		if language.BlockComment != nil {
-			fmt.Printf("Comment types: line (%s), block (%s %s)\n", 
+			fmt.Printf("Comment types: line (%s), block (%s %s)\n",
 				language.LineComment, language.BlockComment.Start, language.BlockComment.End)
 		} else {
 			fmt.Printf("Comment types: line (%s)\n", language.LineComment)
@@ -112,7 +118,7 @@ func (p *Processor) processFile(filename string) error {
 	if p.cli.DryRun {
 		return p.showPreview(filename, language)
 	}
-	
+
 	sedCmd := p.buildSedCommand(language)
 
 	if p.cli.Backup {
@@ -142,7 +148,7 @@ func (p *Processor) processFile(filename string) error {
 
 func (p *Processor) buildSedCommand(language types.Language) string {
 	var commands []string
-	
+
 	if !p.cli.Block && language.LineComment != "" {
 		escaped := escapeForSed(language.LineComment)
 		// Delete lines that are only comments (optionally with whitespace)
@@ -150,7 +156,7 @@ func (p *Processor) buildSedCommand(language types.Language) string {
 		// Remove inline comments but keep the line
 		commands = append(commands, fmt.Sprintf("s/%s.*//g", escaped))
 	}
-	
+
 	if !p.cli.Inline && language.BlockComment != nil {
 		startEscaped := escapeForSed(language.BlockComment.Start)
 		endEscaped := escapeForSed(language.BlockComment.End)
@@ -159,9 +165,9 @@ func (p *Processor) buildSedCommand(language types.Language) string {
 		// Remove multi-line block comments
 		commands = append(commands, fmt.Sprintf("/%s/,/%s/d", startEscaped, endEscaped))
 	}
-	
+
 	// Don't remove empty lines - preserve original file structure
-	
+
 	return strings.Join(commands, "; ")
 }
 
@@ -181,19 +187,19 @@ func escapeForSed(pattern string) string {
 
 func (p *Processor) createBackup(filename string) error {
 	backupName := filename + ".bak"
-	
+
 	srcFile, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
 	defer srcFile.Close()
-	
+
 	dstFile, err := os.Create(backupName)
 	if err != nil {
 		return err
 	}
 	defer dstFile.Close()
-	
+
 	buffer := make([]byte, 1024)
 	for {
 		n, err := srcFile.Read(buffer)
@@ -203,12 +209,12 @@ func (p *Processor) createBackup(filename string) error {
 		if n == 0 {
 			break
 		}
-		
+
 		if _, err := dstFile.Write(buffer[:n]); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
