@@ -155,11 +155,19 @@ func (p *Processor) processFileInMemory(filename string, language types.Language
 	}
 
 	modified := false
-	for i, line := range lines {
+	var processedLines []string
+	
+	for _, line := range lines {
 		newLine := p.removeCommentsFromLine(line, language, cfg)
 		if newLine != line {
-			lines[i] = newLine
 			modified = true
+
+			if newLine != "" {
+				processedLines = append(processedLines, newLine)
+			}
+
+		} else {
+			processedLines = append(processedLines, line)
 		}
 	}
 
@@ -170,7 +178,7 @@ func (p *Processor) processFileInMemory(filename string, language types.Language
 		}
 		defer outFile.Close()
 
-		for _, line := range lines {
+		for _, line := range processedLines {
 			if _, err := fmt.Fprintln(outFile, line); err != nil {
 				return err
 			}
@@ -257,19 +265,19 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 		
 		if newLine != line {
 			changedCount++
-			fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(line))
-			if strings.TrimSpace(newLine) != "" {
+			if newLine == "" {
+				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(line))
+			} else {
+				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(line))
 				fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint("+"), green.Sprint(newLine))
 			}
 		} else {
-
 			hasComment := p.lineHasComment(line, language)
 			if hasComment {
 				preservedCount++
 				fmt.Printf("%s %s %s\n", lineNumStr, cyan.Sprint("P"), line)
 			} else {
 				keptCount++
-				fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint(" "), line)
 			}
 		}
 	}

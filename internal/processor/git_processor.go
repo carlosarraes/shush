@@ -155,6 +155,7 @@ func (p *Processor) processFileWithLineRanges(filename string, lineRanges []git.
 
 	processEntireFile := len(lineRanges) == 0
 	modified := false
+	var processedLines []string
 
 	for i, line := range lines {
 		lineNum := i + 1
@@ -163,9 +164,17 @@ func (p *Processor) processFileWithLineRanges(filename string, lineRanges []git.
 		if shouldProcess {
 			newLine := p.removeCommentsFromLine(line, language, cfg)
 			if newLine != line {
-				lines[i] = newLine
 				modified = true
+
+				if newLine != "" {
+					processedLines = append(processedLines, newLine)
+				}
+
+			} else {
+				processedLines = append(processedLines, line)
 			}
+		} else {
+			processedLines = append(processedLines, line)
 		}
 	}
 
@@ -176,7 +185,7 @@ func (p *Processor) processFileWithLineRanges(filename string, lineRanges []git.
 		}
 		defer outFile.Close()
 
-		for _, line := range lines {
+		for _, line := range processedLines {
 			if _, err := fmt.Fprintln(outFile, line); err != nil {
 				return err
 			}
@@ -193,6 +202,7 @@ func (p *Processor) processFileWithLineRanges(filename string, lineRanges []git.
 }
 
 func (p *Processor) removeCommentsFromLine(line string, language types.Language, cfg *config.Config) string {
+	originalLine := line
 	result := line
 	hasChanges := false
 
@@ -204,7 +214,7 @@ func (p *Processor) removeCommentsFromLine(line string, language types.Language,
 			
 
 			if cfg.ShouldPreserveComment(comment) {
-return line
+				return originalLine
 			}
 			
 			result = result[:idx]
@@ -228,7 +238,7 @@ return line
 
 				comment := strings.TrimSpace(result[startIdx:])
 				if cfg.ShouldPreserveComment(comment) {
-return line
+					return originalLine
 				}
 				
 				result = result[:startIdx]
@@ -239,7 +249,7 @@ return line
 
 			blockComment := strings.TrimSpace(result[startIdx:startIdx+endIdx+len(endComment)])
 			if cfg.ShouldPreserveComment(blockComment) {
-return line
+				return originalLine
 			}
 
 			endIdx += startIdx + len(endComment)
@@ -249,7 +259,23 @@ return line
 	}
 
 	if hasChanges {
-		result = strings.TrimSpace(result)
+		result = strings.TrimRight(result, " \t")
+		
+		if strings.TrimSpace(result) == "" {
+			if p.cli.PreserveLines {
+				leadingWhitespace := ""
+				for _, char := range originalLine {
+					if char == ' ' || char == '\t' {
+						leadingWhitespace += string(char)
+					} else {
+						break
+					}
+				}
+				return leadingWhitespace
+			} else {
+				return ""
+			}
+		}
 	}
 
 	return result
@@ -306,8 +332,10 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 			newLine := p.removeCommentsFromLine(line, language, cfg)
 			if newLine != line {
 				changedCount++
-				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(line))
-				if strings.TrimSpace(newLine) != "" {
+				if newLine == "" {
+					fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(line))
+				} else {
+					fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(line))
 					fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint("+"), green.Sprint(newLine))
 				}
 			} else {
@@ -319,12 +347,10 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 					fmt.Printf("%s %s %s\n", lineNumStr, cyan.Sprint("P"), line)
 				} else {
 					keptCount++
-					fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint(" "), line)
 				}
 			}
 		} else {
 			keptCount++
-			fmt.Printf("%s %s %s\n", lineNumStr, gray.Sprint(" "), gray.Sprint(line))
 		}
 	}
 
