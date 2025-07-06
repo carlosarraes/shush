@@ -1,6 +1,6 @@
 # shush 🤫
 
-Remove comments from source code files blazingly fast using sed under the hood. Features git-aware processing and Claude Code integration.
+Remove comments from source code files blazingly fast using sed under the hood. Features git-aware processing, smart comment preservation, and Claude Code integration.
 
 ## Installation
 
@@ -46,6 +46,13 @@ shush --staged                    # Clean comments from staged changes
 shush --unstaged                  # Clean comments from unstaged changes  
 shush --changes-only              # Clean comments from all changes
 
+# Configuration and hooks management
+shush --create-config             # Create .shush.toml configuration
+shush --config                    # Show current configuration
+shush --install-hook              # Install Claude Code hooks (user-wide)
+shush --install-hook -s project   # Install project-specific hooks
+shush --hook-status               # Check hook installation status
+
 # Combine flags for complex operations
 shush src/ --recursive --inline --dry-run --verbose
 ```
@@ -68,8 +75,11 @@ shush src/ --recursive --inline --dry-run --verbose
 ## Options
 
 ```
+# Comment filtering
 --inline       Remove only line comments
 --block        Remove only block comments
+
+# Processing modes
 -r, --recursive Process directories recursively
 --dry-run      Show what would be removed without making changes
 --backup       Create backup files before modification
@@ -79,6 +89,17 @@ shush src/ --recursive --inline --dry-run --verbose
 --changes-only Remove comments only from git changes (staged + unstaged + untracked)
 --staged       Remove comments only from staged git changes
 --unstaged     Remove comments only from unstaged git changes
+
+# Configuration management
+--config       Show current configuration and location
+--create-config Create example .shush.toml configuration file
+
+# Claude Code hooks
+--install-hook   Install Claude Code hooks for automatic comment cleanup
+--uninstall-hook Uninstall Claude Code hooks  
+--list-hooks     List current Claude Code hooks configuration
+--hook-status    Check if shush hooks are installed
+-s, --hook-scope Hook scope: 'project' for local, default for user-wide
 
 # Utility flags
 --version      Show version information
@@ -146,29 +167,78 @@ shush important.go --backup
 shush config.yaml --dry-run --verbose
 ```
 
+## Comment Preservation Configuration 🎯
+
+Shush supports smart comment preservation through `.shush.toml` configuration files:
+
+```bash
+# Create example configuration file
+shush --create-config
+
+# Check current configuration  
+shush --config
+```
+
+### Configuration File (`.shush.toml`)
+
+```toml
+# Patterns to preserve in comments (supports wildcards with *)
+preserve = [
+    "TODO:",
+    "FIXME:",
+    "HACK:",
+    "XXX:",
+    "@ts-ignore",
+    "@ts-expect-error",
+    "eslint-",
+    "prettier-ignore",
+    "pylint:",
+    "mypy:",
+    "type: ignore",
+    "*IMPORTANT*",   # Wildcard: preserves any comment containing IMPORTANT
+    "*DEBUG*",       # Wildcard: preserves any comment containing DEBUG
+]
+```
+
+### Configuration Discovery
+
+Shush searches for configuration in this order:
+1. `.shush.toml` (current directory)
+2. `.shush.toml` (git repository root)  
+3. `~/.config/.shush.toml` (global user config)
+
 ## Claude Code Integration 🤖
 
-*Coming soon in v0.2.0* - Seamless integration with Claude Code via hooks:
+Seamless integration with Claude Code via hooks - **available now**:
 
 ```bash
 # Install automatic comment cleanup after Claude modifies files
-shush --install-hooks              # User-wide (all projects)
-shush --install-hooks project      # Project-specific only
+shush --install-hook               # User-wide (all projects)
+shush --install-hook -s project    # Project-specific only
 
-# Check hook status  
-shush --hooks-status               # See current configuration
+# Manage hooks
+shush --hook-status                # Check installation status
+shush --list-hooks                 # Show all configured hooks
+shush --uninstall-hook             # Remove hooks
+
+# Hook scope conflict detection
+# Prevents duplicate execution when both user and project hooks exist
 ```
 
-Once installed, comments will be automatically cleaned whenever Claude Code uses Write, Edit, or MultiEdit tools. No manual intervention required!
+Once installed, comments will be automatically cleaned whenever Claude Code uses Write, Edit, or MultiEdit tools. Respects your `.shush.toml` configuration for comment preservation!
 
 ## How It Works
 
-shush uses optimized sed commands to remove comments while preserving code structure. It:
-- Auto-detects language from file extension
-- Builds appropriate sed patterns for the detected language
-- **Git-aware processing**: Only processes changed lines for surgical precision
-- Preserves strings and code that might look like comments
-- **Claude Code integration**: Automatic cleanup via PostToolUse hooks
+shush uses optimized processing to remove comments while preserving code structure:
+
+- **Language Detection**: Auto-detects language from file extension
+- **String-Aware Parsing**: Preserves URLs and strings that contain comment markers (e.g., `"https://example.com"`)
+- **Git-Aware Processing**: Only processes changed lines for surgical precision
+- **Smart Preservation**: Configurable comment preservation via `.shush.toml` patterns
+- **Dual Processing Modes**: 
+  - Traditional sed-based for files/directories
+  - Line-based processing for git operations with comment preservation
+- **Claude Code Integration**: Automatic cleanup via PostToolUse hooks
 
 ## Building from Source
 
