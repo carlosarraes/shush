@@ -58,7 +58,6 @@ func (p *Processor) processGitChanges() error {
 		return nil
 	}
 
-
 	supportedChanges := make([]git.FileChange, 0, len(changes))
 	for _, change := range changes {
 		if IsSupportedFile(change.Path) {
@@ -111,7 +110,6 @@ func (p *Processor) processFileWithLineRanges(filename string, lineRanges []git.
 	if err != nil {
 		return err
 	}
-
 
 	cfg, _, err := config.Load()
 	if err != nil && p.cli.Verbose {
@@ -211,12 +209,11 @@ func (p *Processor) removeCommentsFromLine(line string, language types.Language,
 		if idx := p.findCommentIndex(result, language.LineComment); idx != -1 {
 
 			comment := strings.TrimSpace(result[idx:])
-			
 
 			if cfg.ShouldPreserveComment(comment) {
 				return originalLine
 			}
-			
+
 			result = result[:idx]
 			hasChanges = true
 		}
@@ -228,26 +225,25 @@ func (p *Processor) removeCommentsFromLine(line string, language types.Language,
 		endComment := language.BlockComment.End
 
 		for {
-			startIdx := strings.Index(result, startComment)
+			startIdx := p.findCommentIndex(result, startComment)
 			if startIdx == -1 {
 				break
 			}
 
-			endIdx := strings.Index(result[startIdx:], endComment)
+			endIdx := p.findCommentIndex(result[startIdx:], endComment)
 			if endIdx == -1 {
 
 				comment := strings.TrimSpace(result[startIdx:])
 				if cfg.ShouldPreserveComment(comment) {
 					return originalLine
 				}
-				
+
 				result = result[:startIdx]
 				hasChanges = true
 				break
 			}
 
-
-			blockComment := strings.TrimSpace(result[startIdx:startIdx+endIdx+len(endComment)])
+			blockComment := strings.TrimSpace(result[startIdx : startIdx+endIdx+len(endComment)])
 			if cfg.ShouldPreserveComment(blockComment) {
 				return originalLine
 			}
@@ -260,7 +256,7 @@ func (p *Processor) removeCommentsFromLine(line string, language types.Language,
 
 	if hasChanges {
 		result = strings.TrimRight(result, " \t")
-		
+
 		if strings.TrimSpace(result) == "" {
 			if p.cli.PreserveLines {
 				leadingWhitespace := ""
@@ -286,7 +282,6 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 	if err != nil {
 		return err
 	}
-
 
 	cfg, _, err := config.Load()
 	if err != nil {
@@ -374,21 +369,19 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 	return nil
 }
 
-
 func (p *Processor) findCommentIndex(line, commentMarker string) int {
 	inString := false
 	var stringChar byte
-	
+
 	for i := 0; i < len(line); i++ {
 		char := line[i]
-		
 
 		if !inString && (char == '"' || char == '\'' || char == '`') {
 			inString = true
 			stringChar = char
 			continue
 		}
-		
+
 		if inString && char == stringChar {
 
 			if i > 0 && line[i-1] != '\\' {
@@ -396,7 +389,6 @@ func (p *Processor) findCommentIndex(line, commentMarker string) int {
 			}
 			continue
 		}
-		
 
 		if !inString {
 			if i+len(commentMarker) <= len(line) && line[i:i+len(commentMarker)] == commentMarker {
@@ -404,7 +396,7 @@ func (p *Processor) findCommentIndex(line, commentMarker string) int {
 			}
 		}
 	}
-	
+
 	return -1
 }
 
@@ -414,14 +406,13 @@ func (p *Processor) lineHasComment(line string, language types.Language) bool {
 	if language.LineComment != "" && p.findCommentIndex(line, language.LineComment) != -1 {
 		return true
 	}
-	
 
 	if language.BlockComment != nil {
-		if strings.Contains(line, language.BlockComment.Start) || strings.Contains(line, language.BlockComment.End) {
+		if p.findCommentIndex(line, language.BlockComment.Start) != -1 || p.findCommentIndex(line, language.BlockComment.End) != -1 {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
