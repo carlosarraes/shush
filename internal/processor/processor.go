@@ -28,7 +28,6 @@ func (p *Processor) Process() error {
 		return p.processGitChanges()
 	}
 
-
 	info, err := os.Stat(p.cli.Path)
 	if os.IsNotExist(err) {
 		return fmt.Errorf("path not found: %s", p.cli.Path)
@@ -151,22 +150,22 @@ func (p *Processor) buildSedCommand(language types.Language) string {
 
 	if !p.cli.Block && language.LineComment != "" {
 		escaped := escapeForSed(language.LineComment)
-		// Delete lines that are only comments (optionally with whitespace)
+
 		commands = append(commands, fmt.Sprintf("/^[[:space:]]*%s/d", escaped))
-		// Remove inline comments but keep the line
+
 		commands = append(commands, fmt.Sprintf("s/%s.*//g", escaped))
 	}
 
 	if !p.cli.Inline && language.BlockComment != nil {
 		startEscaped := escapeForSed(language.BlockComment.Start)
 		endEscaped := escapeForSed(language.BlockComment.End)
-		// Remove block comments on same line
+
 		commands = append(commands, fmt.Sprintf("s/%s.*%s//g", startEscaped, endEscaped))
-		// Remove multi-line block comments
+
 		commands = append(commands, fmt.Sprintf("/%s/,/%s/d", startEscaped, endEscaped))
 	}
 
-	// Don't remove empty lines - preserve original file structure
+
 
 	return strings.Join(commands, "; ")
 }
@@ -235,7 +234,7 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 	deletedCount := 0
 	keptCount := 0
 
-	// Compile regex patterns once
+
 	var lineRegex, blockStartRegex, blockEndRegex *regexp.Regexp
 	if language.LineComment != "" && !p.cli.Block {
 		escaped := regexp.QuoteMeta(language.LineComment)
@@ -254,7 +253,7 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 		line := scanner.Text()
 		shouldDelete := false
 
-		// Check if line should be deleted
+
 		if inBlockComment && blockEndRegex != nil {
 			shouldDelete = true
 			if blockEndRegex.MatchString(line) {
@@ -268,9 +267,9 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 		} else if lineRegex != nil && lineRegex.MatchString(line) {
 			shouldDelete = true
 		}
-		// Don't delete empty lines - preserve original file structure
 
-		// Print the line with appropriate formatting
+
+
 		lineNumStr := gray.Sprintf("%4d", lineNum)
 		if shouldDelete {
 			deletedCount++
