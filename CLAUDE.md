@@ -6,6 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Shush is a CLI tool written in Go that removes comments from source code files using sed under the hood. It supports multiple programming languages and can process individual files or directories (with optional recursive traversal). The tool emphasizes preserving file structure while providing precise comment removal control.
 
+**Key Features**:
+- **Git-aware processing**: Surgical precision targeting only changed lines  
+- **Claude Code integration**: Automatic comment cleanup via hooks (planned v0.2.0)
+- **Dual processing modes**: Traditional sed-based + in-memory line-based for git operations
+
 ## Build and Development Commands
 
 ```bash
@@ -30,41 +35,53 @@ make dev
 # Example usage
 ./shush file.py
 ./shush src/ --recursive --dry-run --verbose
+
+# Git-aware examples
+./shush --staged --dry-run
+./shush --changes-only
 ```
 
 ## Architecture
 
 ### Project Structure
-- `cmd/shush/main.go` - Entry point, CLI parsing with kong, version management, LLM guide
-- `internal/types/types.go` - Core type definitions (CLI struct, Language struct, BlockComment)
-- `internal/processor/processor.go` - Main processing logic, file/directory handling, sed command execution, colored preview
+- `cmd/shush/main.go` - Entry point, CLI parsing with kong, version management, LLM guide, git flag validation
+- `internal/types/types.go` - Core type definitions (CLI struct with git flags, Language struct, BlockComment)
+- `internal/processor/processor.go` - Main processing logic, routing between sed and git modes
+- `internal/processor/git_processor.go` - Git-aware processing with line-based comment removal
 - `internal/processor/languages.go` - Language detection and mapping (file extension → comment syntax)
-- `ai_docs/` - Design documents for future features (GIT_FEATURE_PLAN.md)
+- `internal/git/` - Git operations: repo detection, diff parsing, line range extraction
+- `ai_docs/` - Design documents (GIT_FEATURE_PLAN.md, HOOKS_FEATURE_PLAN.md)
 
 ### Core Flow
-1. **CLI Parsing**: Kong parses arguments into `types.CLI` struct
-2. **Language Detection**: File extension mapped to comment patterns via `languageMap`
-3. **Processing Strategy**: 
-   - Single file: Direct processing
-   - Directory: Scan for supported files (recursive if `-r` flag)
-   - Preview mode (`--dry-run`): Show colored diff with line numbers and counts
-   - LLM mode (`--llm`): Display comprehensive usage guide
-4. **Sed Command Generation**: Build sed patterns based on language and flags (`--inline`, `--block`)
-5. **Execution**: Run sed commands or show preview with color-coded output using fatih/color
+1. **CLI Parsing**: Kong parses arguments into `types.CLI` struct with git flag validation
+2. **Mode Detection**: Route to git-aware or traditional processing
+3. **Git Mode** (`--staged`, `--unstaged`, `--changes-only`):
+   - Git repository detection and file change analysis
+   - Diff parsing to extract precise line ranges
+   - Line-based comment removal with totals tracking
+4. **Traditional Mode** (file/directory paths):
+   - Language detection from file extension
+   - Sed command generation and execution
+   - Directory scanning (recursive if `-r` flag)
+5. **Output**: Color-coded preview, totals summary, or file modification
 
 ### Key Design Principles
+- **Dual Processing Architecture**: 
+  - Traditional: sed-based for entire files/directories
+  - Git-aware: in-memory line-based for surgical precision
 - **Comment Removal Logic**: 
   - Comment-only lines are deleted entirely
   - Inline comments are stripped but lines preserved
-  - Original blank lines remain untouched (preserves file structure)
+  - Spacing preserved unless comments are actually removed
+- **Git Integration**: Surgical targeting of only changed lines
 - **Language Support**: Extensible via `languageMap` in `languages.go`
-- **Sed Integration**: Leverages existing sed for performance and reliability
 
 ### Comment Processing Rules
-- Line comments (`//`, `#`, `--`): Remove entire line if comment-only, strip inline comments
-- Block comments (`/* */`): Remove single-line or multi-line blocks
-- Mutual exclusion: `--inline` and `--block` flags cannot be used together
-- Structure preservation: Never remove intentional blank lines
+- **Line comments** (`//`, `#`, `--`): Remove entire line if comment-only, strip inline comments
+- **Block comments** (`/* */`): Remove single-line or multi-line blocks
+- **Git mode**: Only processes lines within detected change ranges
+- **Flag exclusions**: `--inline` and `--block` are mutually exclusive; git flags are mutually exclusive
+- **Structure preservation**: Never remove intentional blank lines; preserve spacing unless comments removed
 
 ## Release Process
 
@@ -83,13 +100,17 @@ To add new language support, update `languageMap` in `internal/processor/languag
 
 ## Future Development
 
-### Planned Git Integration
-A major feature is planned for git-aware comment removal (see `ai_docs/GIT_FEATURE_PLAN.md`):
-- `--staged`: Remove comments only from staged changes
-- `--unstaged`: Remove comments only from unstaged changes  
-- `--changes-only`: Process all git changes (staged + unstaged + untracked)
+### Completed: Git-Aware Processing (v0.1.3)
+The git-aware comment removal feature is now implemented:
+- `--staged`: Remove comments only from staged changes ✅
+- `--unstaged`: Remove comments only from unstaged changes ✅  
+- `--changes-only`: Process all git changes (staged + unstaged + untracked) ✅
 
-This would enable surgical comment removal from only the lines you've changed, preserving existing codebase comments.
+### Planned: Claude Code Hooks Integration (v0.2.0)
+Seamless integration with Claude Code via hooks (see `ai_docs/HOOKS_FEATURE_PLAN.md`):
+- `--install-hooks`: Auto-configure Claude Code to run shush after file modifications
+- `--install-hooks project`: Project-specific hook installation
+- Automatic comment cleanup with zero manual intervention
 
 ## Development Notes
 

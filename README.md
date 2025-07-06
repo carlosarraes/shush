@@ -1,6 +1,6 @@
 # shush 🤫
 
-Remove comments from source code files blazingly fast using sed under the hood.
+Remove comments from source code files blazingly fast using sed under the hood. Features git-aware processing and Claude Code integration.
 
 ## Installation
 
@@ -41,6 +41,11 @@ shush config.lua --backup
 # Verbose output
 shush app.go --verbose
 
+# Git-aware processing (only process changed lines)
+shush --staged                    # Clean comments from staged changes
+shush --unstaged                  # Clean comments from unstaged changes  
+shush --changes-only              # Clean comments from all changes
+
 # Combine flags for complex operations
 shush src/ --recursive --inline --dry-run --verbose
 ```
@@ -69,6 +74,13 @@ shush src/ --recursive --inline --dry-run --verbose
 --dry-run      Show what would be removed without making changes
 --backup       Create backup files before modification
 --verbose      Show detailed output
+
+# Git-aware flags
+--changes-only Remove comments only from git changes (staged + unstaged + untracked)
+--staged       Remove comments only from staged git changes
+--unstaged     Remove comments only from unstaged git changes
+
+# Utility flags
 --version      Show version information
 --llm          Show LLM-friendly usage guide
 --help         Show help message
@@ -109,6 +121,22 @@ shush . --recursive --dry-run
 shush . --recursive --inline --backup
 ```
 
+### Git-Aware Processing
+```bash
+# Clean comments from staged changes before commit
+shush --staged --dry-run          # Preview changes
+shush --staged --backup           # Apply with backup
+
+# Clean comments from current work
+shush --unstaged --inline         # Remove only line comments
+shush --changes-only              # Clean all changes (staged + unstaged + untracked)
+
+# Pre-commit workflow
+shush --staged --dry-run          # 1. Review what will be cleaned  
+shush --staged                    # 2. Clean staged changes
+git commit -m "Clean code"        # 3. Commit cleaned code
+```
+
 ### Backup and Preview
 ```bash
 # Always create backup before modifying
@@ -118,13 +146,29 @@ shush important.go --backup
 shush config.yaml --dry-run --verbose
 ```
 
+## Claude Code Integration 🤖
+
+*Coming soon in v0.2.0* - Seamless integration with Claude Code via hooks:
+
+```bash
+# Install automatic comment cleanup after Claude modifies files
+shush --install-hooks              # User-wide (all projects)
+shush --install-hooks project      # Project-specific only
+
+# Check hook status  
+shush --hooks-status               # See current configuration
+```
+
+Once installed, comments will be automatically cleaned whenever Claude Code uses Write, Edit, or MultiEdit tools. No manual intervention required!
+
 ## How It Works
 
 shush uses optimized sed commands to remove comments while preserving code structure. It:
 - Auto-detects language from file extension
 - Builds appropriate sed patterns for the detected language
-- Removes comments and empty lines in a single pass
+- **Git-aware processing**: Only processes changed lines for surgical precision
 - Preserves strings and code that might look like comments
+- **Claude Code integration**: Automatic cleanup via PostToolUse hooks
 
 ## Building from Source
 
