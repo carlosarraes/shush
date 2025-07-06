@@ -93,7 +93,6 @@ func TestGitFlagValidation(t *testing.T) {
 	}
 }
 
-
 func validateGitFlags(cli types.CLI) error {
 
 	gitFlags := []bool{cli.ChangesOnly, cli.Staged, cli.Unstaged}
@@ -118,7 +117,6 @@ func validateGitFlags(cli types.CLI) error {
 
 	return nil
 }
-
 
 type GitFlagError struct {
 	message string

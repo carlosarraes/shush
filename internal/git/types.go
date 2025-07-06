@@ -1,11 +1,9 @@
 package git
 
-
 type GitStatus struct {
 	IsRepo  bool
 	RootDir string
 }
-
 
 type FileStatus int
 
@@ -15,15 +13,13 @@ const (
 	StatusUntracked
 )
 
-
 type FileChange struct {
 	Path       string
 	Status     FileStatus
-LineRanges []LineRange
+	LineRanges []LineRange
 }
 
-
 type LineRange struct {
-Start int
-End   int
+	Start int
+	End   int
 }

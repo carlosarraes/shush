@@ -43,7 +43,7 @@ func TestParseGitDiffUnified(t *testing.T) {
 			input: `@@ -10,2 +10,0 @@
 -deleted line 1
 -deleted line 2`,
-expected: []LineRange{},
+			expected: []LineRange{},
 		},
 		{
 			name: "no count specified (single line)",
@@ -83,26 +83,26 @@ func TestIsInLineRanges(t *testing.T) {
 	ranges := []LineRange{
 		{Start: 5, End: 7},
 		{Start: 10, End: 12},
-{Start: 20, End: 20},
+		{Start: 20, End: 20},
 	}
 
 	tests := []struct {
 		lineNum  int
 		expected bool
 	}{
-{1, false},
-{4, false},
-{5, true},
-{6, true},
-{7, true},
-{8, false},
-{10, true},
-{11, true},
-{12, true},
-{15, false},
-{20, true},
-{21, false},
-{100, false},
+		{1, false},
+		{4, false},
+		{5, true},
+		{6, true},
+		{7, true},
+		{8, false},
+		{10, true},
+		{11, true},
+		{12, true},
+		{15, false},
+		{20, true},
+		{21, false},
+		{100, false},
 	}
 
 	for _, tt := range tests {
@@ -117,7 +117,6 @@ func TestIsInLineRanges(t *testing.T) {
 
 func TestIsInLineRangesEmptyRanges(t *testing.T) {
 	var emptyRanges []LineRange
-
 
 	testLines := []int{1, 5, 10, 100}
 	for _, lineNum := range testLines {
