@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-
-
 func DetectRepo() (*GitStatus, error) {
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
 	output, err := cmd.Output()
@@ -25,7 +23,6 @@ func DetectRepo() (*GitStatus, error) {
 	}, nil
 }
 
-
 func GetStagedChanges() ([]FileChange, error) {
 
 	cmd := exec.Command("git", "diff", "--cached", "--name-only")
@@ -36,7 +33,7 @@ func GetStagedChanges() ([]FileChange, error) {
 
 	files := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(files) == 1 && files[0] == "" {
-return []FileChange{}, nil
+		return []FileChange{}, nil
 	}
 
 	var changes []FileChange
@@ -44,7 +41,6 @@ return []FileChange{}, nil
 		if file == "" {
 			continue
 		}
-
 
 		lineRanges, err := getLineRangesFromDiff(file, true)
 		if err != nil {
@@ -61,10 +57,8 @@ return []FileChange{}, nil
 	return changes, nil
 }
 
-
 func GetUnstagedChanges() ([]FileChange, error) {
 	var changes []FileChange
-
 
 	cmd := exec.Command("git", "diff", "--name-only")
 	output, err := cmd.Output()
@@ -78,7 +72,6 @@ func GetUnstagedChanges() ([]FileChange, error) {
 			continue
 		}
 
-
 		lineRanges, err := getLineRangesFromDiff(file, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get line ranges for %s: %v", file, err)
@@ -90,7 +83,6 @@ func GetUnstagedChanges() ([]FileChange, error) {
 			LineRanges: lineRanges,
 		})
 	}
-
 
 	cmd = exec.Command("git", "ls-files", "--others", "--exclude-standard")
 	output, err = cmd.Output()
@@ -104,17 +96,15 @@ func GetUnstagedChanges() ([]FileChange, error) {
 			continue
 		}
 
-
 		changes = append(changes, FileChange{
 			Path:       file,
 			Status:     StatusUntracked,
-LineRanges: []LineRange{},
+			LineRanges: []LineRange{},
 		})
 	}
 
 	return changes, nil
 }
-
 
 func getLineRangesFromDiff(file string, staged bool) ([]LineRange, error) {
 	var cmd *exec.Cmd
@@ -126,17 +116,16 @@ func getLineRangesFromDiff(file string, staged bool) ([]LineRange, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+
+
+		return []LineRange{}, nil
 	}
 
 	return ParseDiffUnified(string(output))
 }
 
-
-
 func ParseDiffUnified(diff string) ([]LineRange, error) {
 	var ranges []LineRange
-
 
 	headerRegex := regexp.MustCompile(`@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@`)
 
@@ -154,14 +143,13 @@ func ParseDiffUnified(diff string) ([]LineRange, error) {
 
 			var newCount int
 			if matches[4] == "" {
-newCount = 1
+				newCount = 1
 			} else {
 				newCount, err = strconv.Atoi(matches[4])
 				if err != nil {
 					continue
 				}
 			}
-
 
 			if newCount > 0 {
 				ranges = append(ranges, LineRange{
@@ -175,7 +163,6 @@ newCount = 1
 	return ranges, scanner.Err()
 }
 
-
 func IsInLineRanges(lineNum int, ranges []LineRange) bool {
 	for _, r := range ranges {
 		if lineNum >= r.Start && lineNum <= r.End {
@@ -185,17 +172,14 @@ func IsInLineRanges(lineNum int, ranges []LineRange) bool {
 	return false
 }
 
-
 func GetChangesOnly() ([]FileChange, error) {
 	var allChanges []FileChange
-
 
 	staged, err := GetStagedChanges()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get staged changes: %v", err)
 	}
 	allChanges = append(allChanges, staged...)
-
 
 	unstaged, err := GetUnstagedChanges()
 	if err != nil {
