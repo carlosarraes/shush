@@ -198,7 +198,7 @@ func (p *Processor) removeCommentsFromLine(line string, language types.Language,
 
 	if !p.cli.Block && language.LineComment != "" {
 
-		if idx := strings.Index(result, language.LineComment); idx != -1 {
+		if idx := p.findCommentIndex(result, language.LineComment); idx != -1 {
 
 			comment := strings.TrimSpace(result[idx:])
 			
@@ -348,14 +348,48 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 	return nil
 }
 
+
+func (p *Processor) findCommentIndex(line, commentMarker string) int {
+	inString := false
+	var stringChar byte
+	
+	for i := 0; i < len(line); i++ {
+		char := line[i]
+		
+
+		if !inString && (char == '"' || char == '\'' || char == '`') {
+			inString = true
+			stringChar = char
+			continue
+		}
+		
+		if inString && char == stringChar {
+
+			if i > 0 && line[i-1] != '\\' {
+				inString = false
+			}
+			continue
+		}
+		
+
+		if !inString {
+			if i+len(commentMarker) <= len(line) && line[i:i+len(commentMarker)] == commentMarker {
+				return i
+			}
+		}
+	}
+	
+	return -1
+}
+
 // lineHasComment checks if a line contains comments
 func (p *Processor) lineHasComment(line string, language types.Language) bool {
-	// Check for line comments
-	if language.LineComment != "" && strings.Contains(line, language.LineComment) {
+
+	if language.LineComment != "" && p.findCommentIndex(line, language.LineComment) != -1 {
 		return true
 	}
 	
-	// Check for block comments
+
 	if language.BlockComment != nil {
 		if strings.Contains(line, language.BlockComment.Start) || strings.Contains(line, language.BlockComment.End) {
 			return true
