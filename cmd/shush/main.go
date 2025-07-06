@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/alecthomas/kong"
 	"github.com/carlosarraes/shush/internal/config"
@@ -111,7 +112,7 @@ func showLLMGuide() {
 	fmt.Print(`# Shush CLI - LLM Guide
 
 ## Overview
-Shush is a fast comment removal tool for source code files using sed under the hood.
+Shush is a fast comment removal tool for source code files using in-memory processing.
 - **Purpose**: Remove comments from source code while preserving file structure
 - **Key Strength**: Processes individual files or entire directories with recursive support
 - **LLM-Friendly**: Supports dry-run mode with colored preview for safe operation
@@ -210,7 +211,7 @@ shush src/ -r --inline --backup     # Apply line comment removal
 ### Verbose Mode (--verbose)  
 - **File discovery**: Shows which files found and processed
 - **Language detection**: Displays detected language per file
-- **Command execution**: Shows sed commands being run
+- **Processing details**: Shows in-memory processing operations
 - **Progress tracking**: File-by-file processing status
 
 ### Backup Mode (--backup)
@@ -393,13 +394,29 @@ func uninstallHooks(scope string) error {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
 
+	scopeName := "user-wide"
+	if hookScope == hooks.ScopeProject {
+		scopeName = "project"
+	}
+
 	if !hooks.HasShushHook(settings) {
-		scopeName := "user-wide"
-		if hookScope == hooks.ScopeProject {
-			scopeName = "project"
-		}
 		return fmt.Errorf("shush hook not found for %s scope at %s", scopeName, path)
 	}
+
+
+	if _, err := exec.LookPath("jq"); err == nil {
+
+		if err := uninstallWithJQ(path, scopeName); err == nil {
+			return nil
+		}
+
+		fmt.Printf("⚠️  jq removal failed, using Go implementation\n")
+	} else {
+
+		fmt.Printf("⚠️  jq not available. For surgical removal, install jq and run again.\n")
+		fmt.Printf("   Manual removal: edit %s and remove shush hook entries\n", path)
+	}
+
 
 	if err := hooks.RemoveShushHook(settings); err != nil {
 		return fmt.Errorf("failed to remove shush hook: %w", err)
@@ -409,11 +426,38 @@ func uninstallHooks(scope string) error {
 		return fmt.Errorf("failed to save settings: %w", err)
 	}
 
-	scopeName := "user-wide"
-	if hookScope == hooks.ScopeProject {
-		scopeName = "project"
-	}
 	fmt.Printf("✓ Hooks uninstalled for %s scope at %s\n", scopeName, path)
+	return nil
+}
+
+func uninstallWithJQ(path, scopeName string) error {
+
+	jqFilter := `
+		.hooks.PostToolUse |= (
+			map(
+				.hooks |= map(select(.command != "shush --changes-only"))
+			) |
+			map(select(.hooks | length > 0))
+		) |
+		if .hooks.PostToolUse | length == 0 then
+			.hooks |= del(.PostToolUse)
+		else
+			.
+		end
+	`
+
+	cmd := exec.Command("jq", jqFilter, path)
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("jq command failed: %w", err)
+	}
+
+
+	if err := os.WriteFile(path, output, 0644); err != nil {
+		return fmt.Errorf("failed to write updated settings: %w", err)
+	}
+
+	fmt.Printf("✓ Hooks uninstalled for %s scope at %s (using jq)\n", scopeName, path)
 	return nil
 }
 
