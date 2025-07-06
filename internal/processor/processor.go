@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
+	"github.com/carlosarraes/shush/internal/config"
 	"github.com/carlosarraes/shush/internal/types"
 	"github.com/fatih/color"
 )
@@ -118,7 +117,33 @@ func (p *Processor) processFile(filename string) error {
 		return p.showPreview(filename, language)
 	}
 
-	sedCmd := p.buildSedCommand(language)
+
+	return p.processFileInMemory(filename, language)
+}
+
+func (p *Processor) processFileInMemory(filename string, language types.Language) error {
+
+	cfg, _, err := config.Load()
+	if err != nil && p.cli.Verbose {
+		fmt.Printf("Warning: failed to load config, using defaults: %v\n", err)
+		cfg = config.Default()
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
 
 	if p.cli.Backup {
 		if err := p.createBackup(filename); err != nil {
@@ -129,60 +154,39 @@ func (p *Processor) processFile(filename string) error {
 		}
 	}
 
-	if p.cli.Verbose {
-		fmt.Printf("Executing: %s\n", sedCmd)
+	modified := false
+	for i, line := range lines {
+		newLine := p.removeCommentsFromLine(line, language, cfg)
+		if newLine != line {
+			lines[i] = newLine
+			modified = true
+		}
 	}
 
-	cmd := exec.Command("sed", "-i", sedCmd, filename)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("sed command failed: %v", err)
-	}
+	if modified {
+		outFile, err := os.Create(filename)
+		if err != nil {
+			return err
+		}
+		defer outFile.Close()
 
-	if p.cli.Verbose {
-		fmt.Printf("✓ Comments removed from %s\n", filename)
+		for _, line := range lines {
+			if _, err := fmt.Fprintln(outFile, line); err != nil {
+				return err
+			}
+		}
+
+		if p.cli.Verbose {
+			fmt.Printf("✓ Comments removed from %s\n", filename)
+		}
+	} else if p.cli.Verbose {
+		fmt.Printf("✓ No changes made to %s\n", filename)
 	}
 
 	return nil
 }
 
-func (p *Processor) buildSedCommand(language types.Language) string {
-	var commands []string
 
-	if !p.cli.Block && language.LineComment != "" {
-		escaped := escapeForSed(language.LineComment)
-
-		commands = append(commands, fmt.Sprintf("/^[[:space:]]*%s/d", escaped))
-
-		commands = append(commands, fmt.Sprintf("s/%s.*//g", escaped))
-	}
-
-	if !p.cli.Inline && language.BlockComment != nil {
-		startEscaped := escapeForSed(language.BlockComment.Start)
-		endEscaped := escapeForSed(language.BlockComment.End)
-
-		commands = append(commands, fmt.Sprintf("s/%s.*%s//g", startEscaped, endEscaped))
-
-		commands = append(commands, fmt.Sprintf("/%s/,/%s/d", startEscaped, endEscaped))
-	}
-
-
-
-	return strings.Join(commands, "; ")
-}
-
-func escapeForSed(pattern string) string {
-	replacer := strings.NewReplacer(
-		"/", "\\/",
-		"*", "\\*",
-		".", "\\.",
-		"[", "\\[",
-		"]", "\\]",
-		"^", "\\^",
-		"$", "\\$",
-		"\\", "\\\\",
-	)
-	return replacer.Replace(pattern)
-}
 
 func (p *Processor) createBackup(filename string) error {
 	backupName := filename + ".bak"
@@ -218,6 +222,12 @@ func (p *Processor) createBackup(filename string) error {
 }
 
 func (p *Processor) showPreview(filename string, language types.Language) error {
+
+	cfg, _, err := config.Load()
+	if err != nil {
+		cfg = config.Default()
+	}
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -228,55 +238,39 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 	green := color.New(color.FgGreen)
 	gray := color.New(color.FgHiBlack)
 	yellow := color.New(color.FgYellow)
-
-	scanner := bufio.NewScanner(file)
-	lineNum := 0
-	deletedCount := 0
-	keptCount := 0
-
-
-	var lineRegex, blockStartRegex, blockEndRegex *regexp.Regexp
-	if language.LineComment != "" && !p.cli.Block {
-		escaped := regexp.QuoteMeta(language.LineComment)
-		lineRegex = regexp.MustCompile(fmt.Sprintf(`^\s*%s|%s.*$`, escaped, escaped))
-	}
-	if language.BlockComment != nil && !p.cli.Inline {
-		blockStartRegex = regexp.MustCompile(regexp.QuoteMeta(language.BlockComment.Start))
-		blockEndRegex = regexp.MustCompile(regexp.QuoteMeta(language.BlockComment.End))
-	}
+	cyan := color.New(color.FgCyan)
 
 	fmt.Printf("\n%s %s\n\n", yellow.Sprint("Preview:"), filename)
 
-	inBlockComment := false
+	scanner := bufio.NewScanner(file)
+	lineNum := 0
+	changedCount := 0
+	keptCount := 0
+	preservedCount := 0
+
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Text()
-		shouldDelete := false
-
-
-		if inBlockComment && blockEndRegex != nil {
-			shouldDelete = true
-			if blockEndRegex.MatchString(line) {
-				inBlockComment = false
-			}
-		} else if blockStartRegex != nil && blockStartRegex.MatchString(line) {
-			shouldDelete = true
-			if !blockEndRegex.MatchString(line) {
-				inBlockComment = true
-			}
-		} else if lineRegex != nil && lineRegex.MatchString(line) {
-			shouldDelete = true
-		}
-
-
-
+		newLine := p.removeCommentsFromLine(line, language, cfg)
+		
 		lineNumStr := gray.Sprintf("%4d", lineNum)
-		if shouldDelete {
-			deletedCount++
-			fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(line))
+		
+		if newLine != line {
+			changedCount++
+			fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(line))
+			if strings.TrimSpace(newLine) != "" {
+				fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint("+"), green.Sprint(newLine))
+			}
 		} else {
-			keptCount++
-			fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint(" "), line)
+
+			hasComment := p.lineHasComment(line, language)
+			if hasComment {
+				preservedCount++
+				fmt.Printf("%s %s %s\n", lineNumStr, cyan.Sprint("P"), line)
+			} else {
+				keptCount++
+				fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint(" "), line)
+			}
 		}
 	}
 
@@ -285,8 +279,12 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 	}
 
 	fmt.Printf("\n%s\n", strings.Repeat("-", 50))
-	fmt.Printf("%s %d lines would be removed\n", red.Sprint("✗"), deletedCount)
-	fmt.Printf("%s %d lines would be kept\n\n", green.Sprint("✓"), keptCount)
+	fmt.Printf("%s %d lines would be changed\n", yellow.Sprint("~"), changedCount)
+	fmt.Printf("%s %d lines would be kept\n", green.Sprint("✓"), keptCount)
+	if preservedCount > 0 {
+		fmt.Printf("%s %d comments would be preserved\n", cyan.Sprint("P"), preservedCount)
+	}
+	fmt.Println()
 
 	return nil
 }
