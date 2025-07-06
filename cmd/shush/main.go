@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
+	"github.com/carlosarraes/shush/internal/config"
+	"github.com/carlosarraes/shush/internal/hooks"
 	"github.com/carlosarraes/shush/internal/processor"
 	"github.com/carlosarraes/shush/internal/types"
 )
@@ -22,6 +24,48 @@ func main() {
 		return
 	}
 
+
+	hookCommands := []bool{
+		cli.InstallHook,
+		cli.UninstallHook,
+		cli.ListHooks,
+		cli.HookStatus,
+		cli.Config,
+		cli.CreateConfig,
+	}
+	hookFlagCount := 0
+	for _, flag := range hookCommands {
+		if flag {
+			hookFlagCount++
+		}
+	}
+
+	if hookFlagCount > 1 {
+		fmt.Fprintf(os.Stderr, "Error: utility commands (--install-hook, --uninstall-hook, --list-hooks, --hook-status, --config, --create-config) are mutually exclusive\n")
+		os.Exit(1)
+	}
+
+	if hookFlagCount > 0 {
+
+		if cli.Recursive || cli.Inline || cli.Block || cli.DryRun || cli.Backup || cli.Verbose {
+			fmt.Fprintf(os.Stderr, "Error: hook commands cannot be combined with processing flags\n")
+			os.Exit(1)
+		}
+
+		gitFlags := []bool{cli.ChangesOnly, cli.Staged, cli.Unstaged}
+		for _, flag := range gitFlags {
+			if flag {
+				fmt.Fprintf(os.Stderr, "Error: hook commands cannot be combined with git flags\n")
+				os.Exit(1)
+			}
+		}
+
+		if err := handleHookCommands(cli); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	gitFlags := []bool{cli.ChangesOnly, cli.Staged, cli.Unstaged}
 	gitFlagCount := 0
@@ -45,7 +89,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: cannot use git flags with --recursive (git handles repository scope)\n")
 		os.Exit(1)
 	}
-
 
 	if gitFlagCount == 0 && cli.Path == "" {
 		fmt.Fprintf(os.Stderr, "Error: path argument is required\n")
@@ -250,4 +293,252 @@ shush --staged --backup --verbose         # Process with maximum safety
 
 Shush excels at safe, fast comment removal with excellent preview capabilities for confident code processing.
 `)
+}
+
+func handleHookCommands(cli types.CLI) error {
+	switch {
+	case cli.InstallHook:
+		return installHooks(cli.HookScope)
+	case cli.UninstallHook:
+		return uninstallHooks(cli.HookScope)
+	case cli.ListHooks:
+		return listHooks()
+	case cli.HookStatus:
+		return showHooksStatus()
+	case cli.Config:
+		return showConfig()
+	case cli.CreateConfig:
+		return createConfig()
+	}
+	return nil
+}
+
+func installHooks(scope string) error {
+	hookScope := hooks.ScopeUser
+	if scope == "project" {
+		hookScope = hooks.ScopeProject
+	}
+
+
+	userPath, _ := hooks.GetSettingsPath(hooks.ScopeUser)
+	projectPath, _ := hooks.GetSettingsPath(hooks.ScopeProject)
+	
+	userSettings, userErr := hooks.LoadSettings(userPath)
+	projectSettings, projectErr := hooks.LoadSettings(projectPath)
+	
+	userHasShush := userErr == nil && hooks.HasShushHook(userSettings)
+	projectHasShush := projectErr == nil && hooks.HasShushHook(projectSettings)
+
+	if hookScope == hooks.ScopeUser {
+
+		if userHasShush {
+			return fmt.Errorf("shush hook already installed for user-wide scope at %s", userPath)
+		}
+		if projectHasShush {
+			fmt.Printf("ℹ  Project-specific hooks found at %s\n", projectPath)
+			fmt.Println("   User-wide hooks will take precedence and override project hooks")
+		}
+	} else {
+
+		if userHasShush {
+			return fmt.Errorf("user-wide hooks already installed at %s\n" +
+				"   User-wide hooks cover all projects including this one.\n" +
+				"   Use --uninstall-hook first if you want project-specific hooks instead", userPath)
+		}
+		if projectHasShush {
+			return fmt.Errorf("shush hook already installed for project scope at %s", projectPath)
+		}
+	}
+
+	path, err := hooks.GetSettingsPath(hookScope)
+	if err != nil {
+		return fmt.Errorf("failed to get settings path: %w", err)
+	}
+
+	settings, err := hooks.LoadSettings(path)
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %w", err)
+	}
+
+	if err := hooks.AddShushHook(settings); err != nil {
+		return fmt.Errorf("failed to add shush hook: %w", err)
+	}
+
+	if err := hooks.SaveSettings(path, settings); err != nil {
+		return fmt.Errorf("failed to save settings: %w", err)
+	}
+
+	scopeName := "user-wide"
+	if hookScope == hooks.ScopeProject {
+		scopeName = "project"
+	}
+	fmt.Printf("✓ Hooks installed for %s scope at %s\n", scopeName, path)
+	fmt.Println("  Auto-cleanup will run after Claude modifies files")
+	return nil
+}
+
+func uninstallHooks(scope string) error {
+	hookScope := hooks.ScopeUser
+	if scope == "project" {
+		hookScope = hooks.ScopeProject
+	}
+
+	path, err := hooks.GetSettingsPath(hookScope)
+	if err != nil {
+		return fmt.Errorf("failed to get settings path: %w", err)
+	}
+
+	settings, err := hooks.LoadSettings(path)
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %w", err)
+	}
+
+	if !hooks.HasShushHook(settings) {
+		scopeName := "user-wide"
+		if hookScope == hooks.ScopeProject {
+			scopeName = "project"
+		}
+		return fmt.Errorf("shush hook not found for %s scope at %s", scopeName, path)
+	}
+
+	if err := hooks.RemoveShushHook(settings); err != nil {
+		return fmt.Errorf("failed to remove shush hook: %w", err)
+	}
+
+	if err := hooks.SaveSettings(path, settings); err != nil {
+		return fmt.Errorf("failed to save settings: %w", err)
+	}
+
+	scopeName := "user-wide"
+	if hookScope == hooks.ScopeProject {
+		scopeName = "project"
+	}
+	fmt.Printf("✓ Hooks uninstalled for %s scope at %s\n", scopeName, path)
+	return nil
+}
+
+func showHooksStatus() error {
+	userPath, _ := hooks.GetSettingsPath(hooks.ScopeUser)
+	projectPath, _ := hooks.GetSettingsPath(hooks.ScopeProject)
+
+	userSettings, userErr := hooks.LoadSettings(userPath)
+	projectSettings, projectErr := hooks.LoadSettings(projectPath)
+
+	userHasShush := userErr == nil && hooks.HasShushHook(userSettings)
+	projectHasShush := projectErr == nil && hooks.HasShushHook(projectSettings)
+
+	fmt.Println("Shush Hooks Status:")
+	fmt.Printf("User-wide (%s): %s\n", userPath, getHookStatus(userSettings, userErr))
+	fmt.Printf("Project (%s): %s\n", projectPath, getHookStatus(projectSettings, projectErr))
+
+
+	if userHasShush && projectHasShush {
+		fmt.Println("\n⚠️  Warning: Both user-wide and project hooks are installed")
+		fmt.Println("   This will cause shush to run twice on every file modification")
+		fmt.Println("   Consider removing project hooks: shush --uninstall-hook -s project")
+	} else if userHasShush {
+		fmt.Println("\n✓ User-wide hooks will handle all projects including this one")
+	} else if projectHasShush {
+		fmt.Println("\n✓ Project-specific hooks active for this project only")
+	}
+
+	return nil
+}
+
+func getHookStatus(settings *hooks.ClaudeSettings, err error) string {
+	if err != nil {
+		return "Not configured"
+	}
+	if hooks.HasShushHook(settings) {
+		return "✓ Installed"
+	}
+	return "Not installed"
+}
+
+func listHooks() error {
+	userPath, _ := hooks.GetSettingsPath(hooks.ScopeUser)
+	projectPath, _ := hooks.GetSettingsPath(hooks.ScopeProject)
+
+	fmt.Println("Claude Code Hooks Configuration:")
+
+	fmt.Println("User-wide:")
+	if err := listHooksForPath(userPath); err != nil {
+		fmt.Println("  No hooks configured")
+	}
+
+	fmt.Println("Project:")
+	if err := listHooksForPath(projectPath); err != nil {
+		fmt.Println("  No hooks configured")
+	}
+
+	return nil
+}
+
+func listHooksForPath(path string) error {
+	settings, err := hooks.LoadSettings(path)
+	if err != nil {
+		return err
+	}
+
+	if settings.Hooks == nil || len(settings.Hooks) == 0 {
+		return fmt.Errorf("no hooks")
+	}
+
+	hasShush := hooks.HasShushHook(settings)
+
+	for event, configs := range settings.Hooks {
+		for _, config := range configs {
+			for _, hook := range config.Hooks {
+				if hook.Command == "shush --changes-only" {
+					fmt.Printf("  ✓ shush --changes-only (%s: %s)\n", event, config.Matcher)
+				} else {
+					fmt.Printf("  ✓ %s (%s: %s)\n", hook.Command, event, config.Matcher)
+				}
+			}
+		}
+	}
+
+	if !hasShush {
+		fmt.Println("  (No shush hooks found)")
+	}
+
+	return nil
+}
+
+func showConfig() error {
+	cfg, configPath, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	fmt.Println("Shush Configuration:")
+	if configPath != "" {
+		fmt.Printf("Config file: %s\n", configPath)
+	} else {
+		fmt.Println("Config file: Using defaults (no config file found)")
+	}
+
+	fmt.Printf("\nPreserve patterns (%d):\n", len(cfg.Preserve))
+	for i, pattern := range cfg.Preserve {
+		fmt.Printf("  %2d. %s\n", i+1, pattern)
+	}
+
+	fmt.Println("\nConfig file search order:")
+	fmt.Println("  1. .shush.toml (current directory)")
+	fmt.Println("  2. .shush.toml (git repository root)")
+	fmt.Println("  3. ~/.config/.shush.toml (global)")
+
+	return nil
+}
+
+func createConfig() error {
+	if err := config.CreateExampleConfig(); err != nil {
+		return fmt.Errorf("failed to create config file: %w", err)
+	}
+
+	fmt.Println("✓ Created .shush.toml configuration file")
+	fmt.Println("  Edit this file to customize which comments to preserve")
+	fmt.Println("  Patterns support wildcards with * (e.g., '*IMPORTANT*')")
+
+	return nil
 }
