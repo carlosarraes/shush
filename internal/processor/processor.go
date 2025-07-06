@@ -117,7 +117,6 @@ func (p *Processor) processFile(filename string) error {
 		return p.showPreview(filename, language)
 	}
 
-
 	return p.processFileInMemory(filename, language)
 }
 
@@ -156,7 +155,7 @@ func (p *Processor) processFileInMemory(filename string, language types.Language
 
 	modified := false
 	var processedLines []string
-	
+
 	for _, line := range lines {
 		newLine := p.removeCommentsFromLine(line, language, cfg)
 		if newLine != line {
@@ -193,8 +192,6 @@ func (p *Processor) processFileInMemory(filename string, language types.Language
 
 	return nil
 }
-
-
 
 func (p *Processor) createBackup(filename string) error {
 	backupName := filename + ".bak"
@@ -260,9 +257,9 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 		lineNum++
 		line := scanner.Text()
 		newLine := p.removeCommentsFromLine(line, language, cfg)
-		
+
 		lineNumStr := gray.Sprintf("%4d", lineNum)
-		
+
 		if newLine != line {
 			changedCount++
 			if newLine == "" {

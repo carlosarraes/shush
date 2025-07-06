@@ -9,12 +9,6 @@ import (
 	"strings"
 )
 
-
-
-
-
-
-
 type HookScope int
 
 const (
@@ -22,25 +16,20 @@ const (
 	ScopeProject
 )
 
-
 type ClaudeSettings struct {
 	Hooks map[string][]EventConfig `json:"hooks,omitempty"`
-
 }
-
 
 type EventConfig struct {
 	Matcher string      `json:"matcher"`
 	Hooks   []HookEntry `json:"hooks"`
 }
 
-
 type HookEntry struct {
 	Type    string `json:"type"`
 	Command string `json:"command"`
 	Timeout int    `json:"timeout,omitempty"`
 }
-
 
 func GetSettingsPath(scope HookScope) (string, error) {
 	switch scope {
@@ -61,7 +50,6 @@ func GetSettingsPath(scope HookScope) (string, error) {
 	}
 }
 
-
 func EnsureSettingsDirectory(settingsPath string) error {
 	dir := filepath.Dir(settingsPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -69,7 +57,6 @@ func EnsureSettingsDirectory(settingsPath string) error {
 	}
 	return nil
 }
-
 
 func LoadSettings(path string) (*ClaudeSettings, error) {
 	data, err := os.ReadFile(path)
@@ -88,14 +75,12 @@ func LoadSettings(path string) (*ClaudeSettings, error) {
 		return nil, fmt.Errorf("failed to parse settings file %s: %w", path, err)
 	}
 
-
 	if settings.Hooks == nil {
 		settings.Hooks = make(map[string][]EventConfig)
 	}
 
 	return &settings, nil
 }
-
 
 func SaveSettings(path string, settings *ClaudeSettings) error {
 	if err := EnsureSettingsDirectory(path); err != nil {
@@ -114,7 +99,6 @@ func SaveSettings(path string, settings *ClaudeSettings) error {
 	return nil
 }
 
-
 func CreateShushHookEntry() HookEntry {
 	return HookEntry{
 		Type:    "command",
@@ -123,14 +107,12 @@ func CreateShushHookEntry() HookEntry {
 	}
 }
 
-
 func CreateShushEventConfig() EventConfig {
 	return EventConfig{
 		Matcher: "Write|Edit|MultiEdit",
 		Hooks:   []HookEntry{CreateShushHookEntry()},
 	}
 }
-
 
 func HasShushHook(settings *ClaudeSettings) bool {
 	if settings.Hooks == nil {
@@ -153,7 +135,6 @@ func HasShushHook(settings *ClaudeSettings) bool {
 	return false
 }
 
-
 func AddShushHook(settings *ClaudeSettings) error {
 	if settings.Hooks == nil {
 		settings.Hooks = make(map[string][]EventConfig)
@@ -163,14 +144,12 @@ func AddShushHook(settings *ClaudeSettings) error {
 		return errors.New("shush hook already installed")
 	}
 
-
 	postToolUseConfigs, exists := settings.Hooks["PostToolUse"]
 	if !exists {
 
 		settings.Hooks["PostToolUse"] = []EventConfig{CreateShushEventConfig()}
 		return nil
 	}
-
 
 	for i, config := range postToolUseConfigs {
 		if config.Matcher == "Write|Edit|MultiEdit" || config.Matcher == "" {
@@ -180,11 +159,9 @@ func AddShushHook(settings *ClaudeSettings) error {
 		}
 	}
 
-
 	settings.Hooks["PostToolUse"] = append(postToolUseConfigs, CreateShushEventConfig())
 	return nil
 }
-
 
 func RemoveShushHook(settings *ClaudeSettings) error {
 	if settings.Hooks == nil {
@@ -212,7 +189,6 @@ func RemoveShushHook(settings *ClaudeSettings) error {
 	if !found {
 		return errors.New("shush hook not found")
 	}
-
 
 	filteredConfigs := make([]EventConfig, 0, len(postToolUseConfigs))
 	for _, config := range postToolUseConfigs {

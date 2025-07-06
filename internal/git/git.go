@@ -117,7 +117,6 @@ func getLineRangesFromDiff(file string, staged bool) ([]LineRange, error) {
 	output, err := cmd.Output()
 	if err != nil {
 
-
 		return []LineRange{}, nil
 	}
 
