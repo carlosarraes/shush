@@ -31,7 +31,7 @@ func DetectLanguage(filename string) (types.Language, error) {
 	}
 
 	ext = strings.TrimPrefix(ext, ".")
-	
+
 	if language, ok := languageMap[ext]; ok {
 		return language, nil
 	}
@@ -42,7 +42,7 @@ func DetectLanguage(filename string) (types.Language, error) {
 func GetLanguageName(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
 	ext = strings.TrimPrefix(ext, ".")
-	
+
 	names := map[string]string{
 		"lua":  "Lua",
 		"py":   "Python",
@@ -58,7 +58,7 @@ func GetLanguageName(filename string) string {
 		"yml":  "YAML",
 		"yaml": "YAML",
 	}
-	
+
 	if name, ok := names[ext]; ok {
 		return name
 	}
