@@ -13,7 +13,7 @@ var version = "0.1.2"
 
 func main() {
 	var cli types.CLI
-	kong.Parse(&cli, 
+	kong.Parse(&cli,
 		kong.Description("Remove comments from source code files"),
 		kong.Vars{"version": version})
 
@@ -22,7 +22,32 @@ func main() {
 		return
 	}
 
-	if cli.Path == "" {
+
+	gitFlags := []bool{cli.ChangesOnly, cli.Staged, cli.Unstaged}
+	gitFlagCount := 0
+	for _, flag := range gitFlags {
+		if flag {
+			gitFlagCount++
+		}
+	}
+
+	if gitFlagCount > 1 {
+		fmt.Fprintf(os.Stderr, "Error: git flags (--changes-only, --staged, --unstaged) are mutually exclusive\n")
+		os.Exit(1)
+	}
+
+	if gitFlagCount > 0 && cli.Path != "" {
+		fmt.Fprintf(os.Stderr, "Error: cannot use git flags with explicit path argument\n")
+		os.Exit(1)
+	}
+
+	if gitFlagCount > 0 && cli.Recursive {
+		fmt.Fprintf(os.Stderr, "Error: cannot use git flags with --recursive (git handles repository scope)\n")
+		os.Exit(1)
+	}
+
+
+	if gitFlagCount == 0 && cli.Path == "" {
 		fmt.Fprintf(os.Stderr, "Error: path argument is required\n")
 		os.Exit(1)
 	}
@@ -149,6 +174,58 @@ shush src/ -r --inline --backup     # Apply line comment removal
 - **Safety net**: Creates ` + "`.bak`" + ` files before modification
 - **Original preservation**: Backup contains exact original content
 - **Per-file basis**: Each processed file gets individual backup
+
+## Git-Aware Processing
+
+### Git Mode Commands
+` + "```bash" + `
+# Process all changes (staged + unstaged + untracked)
+shush --changes-only                 # Remove comments from all changed files
+shush --changes-only --dry-run       # Preview changes across entire repository
+
+# Process only staged changes
+shush --staged                       # Clean comments from staged files
+shush --staged --dry-run --verbose   # Preview staged changes with details
+
+# Process only unstaged changes  
+shush --unstaged                     # Clean comments from unstaged work
+shush --unstaged --inline           # Remove only line comments from unstaged files
+` + "```" + `
+
+### Git Workflow Examples
+` + "```bash" + `
+# Pre-commit cleanup workflow
+shush --staged --dry-run             # 1. Review what will be cleaned
+shush --staged --backup              # 2. Clean staged changes with backup
+git commit -m "Clean implementation" # 3. Commit cleaned code
+
+# Feature development cleanup
+shush --unstaged --dry-run           # 1. Preview unstaged work cleanup  
+shush --unstaged --inline            # 2. Remove only debug comments
+shush --changes-only                 # 3. Clean all changes before review
+
+# Safe exploration workflow
+shush --changes-only --dry-run --verbose  # See all changes that would be made
+shush --staged --backup --verbose         # Process with maximum safety
+` + "```" + `
+
+### Git Mode Behavior
+- **Surgical precision**: Only processes lines that have been changed
+- **Repository scope**: Automatically processes relevant files across the repo
+- **Change detection**: Uses git diff to identify modified line ranges
+- **Untracked files**: Processes entirely (no previous version to compare)
+- **Preserves existing code**: Comments in unchanged lines remain untouched
+
+### Git Flag Rules
+- **Mutually exclusive**: Cannot combine ` + "`--staged`" + `, ` + "`--unstaged`" + `, ` + "`--changes-only`" + `
+- **No explicit paths**: Git flags work on repository scope, not individual files
+- **No recursive flag**: Git mode handles repository traversal automatically
+- **Compatible with**: ` + "`--inline`" + `, ` + "`--block`" + `, ` + "`--dry-run`" + `, ` + "`--backup`" + `, ` + "`--verbose`" + `
+
+### Git Error Scenarios
+- **Not in repository**: Clear error message when git flags used outside git repo
+- **No changes found**: Informative message when no staged/unstaged changes exist
+- **Git command failures**: Graceful handling of git command errors
 
 ## Best Practices for LLM Integration
 
