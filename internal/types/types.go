@@ -10,6 +10,7 @@ type CLI struct {
 	DryRun         bool             `help:"Show what would be removed without making changes"`
 	Backup         bool             `help:"Create backup files before modification"`
 	Verbose        bool             `help:"Show detailed output"`
+	PreserveLines  bool             `help:"Remove comments but preserve empty lines"`
 	LLM            bool             `help:"Show LLM-friendly usage guide"`
 	ChangesOnly    bool             `help:"Remove comments only from git changes (staged + unstaged + untracked)"`
 	Staged         bool             `help:"Remove comments only from staged git changes"`
