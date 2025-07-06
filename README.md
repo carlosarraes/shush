@@ -38,6 +38,9 @@ shush script.sh --dry-run
 # Create a backup before modifying
 shush config.lua --backup
 
+# Keep comment-only lines as empty lines (indentation always preserved)
+shush script.py --preserve-lines
+
 # Verbose output
 shush app.go --verbose
 
@@ -80,10 +83,11 @@ shush src/ --recursive --inline --dry-run --verbose
 --block        Remove only block comments
 
 # Processing modes
--r, --recursive Process directories recursively
---dry-run      Show what would be removed without making changes
---backup       Create backup files before modification
---verbose      Show detailed output
+-r, --recursive    Process directories recursively
+--dry-run          Show what would be removed without making changes
+--backup           Create backup files before modification
+--verbose          Show detailed output
+--preserve-lines   Keep comment-only lines as empty lines (indentation always preserved)
 
 # Git-aware flags
 --changes-only Remove comments only from git changes (staged + unstaged + untracked)
@@ -114,11 +118,19 @@ shush src/ --recursive --inline --dry-run --verbose
 # Before
 # This is a comment
 def hello():
+    # Comment-only line
     print("Hello")  # Inline comment
 
-# After running: shush example.py
+# After running: shush example.py (default - comment-only lines deleted)
 def hello():
     print("Hello")
+
+# After running: shush example.py --preserve-lines (comment-only lines kept as empty)
+def hello():
+    
+    print("Hello")
+
+# Note: Code indentation is ALWAYS preserved in both modes
 ```
 
 ### JavaScript
@@ -156,6 +168,18 @@ shush --changes-only              # Clean all changes (staged + unstaged + untra
 shush --staged --dry-run          # 1. Review what will be cleaned  
 shush --staged                    # 2. Clean staged changes
 git commit -m "Clean code"        # 3. Commit cleaned code
+```
+
+### Line Structure Control
+```bash
+# Default: Comment-only lines are deleted entirely
+shush script.py                      # Clean removal
+
+# Keep comment-only lines as empty lines (preserves line numbers)
+shush script.py --preserve-lines     # Useful for debugging/line references
+
+# Code indentation is ALWAYS preserved regardless of flag
+shush python_code.py --preserve-lines --dry-run
 ```
 
 ### Backup and Preview
