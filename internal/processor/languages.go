@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/carlosarraes/shush/internal/ignore"
 	"github.com/carlosarraes/shush/internal/types"
 )
 
@@ -152,5 +153,17 @@ func IsSupportedFile(filename string) bool {
 	}
 	ext = strings.TrimPrefix(ext, ".")
 	_, ok := languageMap[ext]
-	return ok
+	if !ok {
+		return false
+	}
+
+	return !IsIgnored(filename)
+}
+
+func IsIgnored(filename string) bool {
+	ignoreChecker, err := ignore.Load()
+	if err != nil {
+		return false
+	}
+	return ignoreChecker.IsIgnored(filename)
 }

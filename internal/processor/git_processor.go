@@ -63,7 +63,11 @@ func (p *Processor) processGitChanges() error {
 		if IsSupportedFile(change.Path) {
 			supportedChanges = append(supportedChanges, change)
 		} else if p.cli.Verbose {
-			fmt.Printf("Skipping unsupported file: %s\n", change.Path)
+			if IsIgnored(change.Path) {
+				fmt.Printf("Skipping ignored file: %s\n", change.Path)
+			} else {
+				fmt.Printf("Skipping unsupported file: %s\n", change.Path)
+			}
 		}
 	}
 

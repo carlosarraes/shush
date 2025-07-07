@@ -40,6 +40,11 @@ func (p *Processor) Process() error {
 		return p.processDirectory(p.cli.Path)
 	}
 
+	if IsIgnored(p.cli.Path) {
+		fmt.Printf("File %s is in .shushignore, ignoring\n", p.cli.Path)
+		return nil
+	}
+
 	return p.processFile(p.cli.Path)
 }
 
