@@ -62,6 +62,10 @@ func InstallHooks(scope string) error {
 		return fmt.Errorf("failed to get settings path: %w", err)
 	}
 
+	if err := hooks.CreateBackup(path); err != nil {
+		return fmt.Errorf("failed to create backup: %w", err)
+	}
+
 	settings, err := hooks.LoadSettings(path)
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
@@ -107,6 +111,10 @@ func UninstallHooks(scope string) error {
 
 	if !hooks.HasShushHook(settings) {
 		return fmt.Errorf("shush hook not found for %s scope at %s", scopeName, path)
+	}
+
+	if err := hooks.CreateBackup(path); err != nil {
+		return fmt.Errorf("failed to create backup: %w", err)
 	}
 
 	if _, err := exec.LookPath("jq"); err == nil {
@@ -222,19 +230,56 @@ func listHooksForPath(path string) error {
 		return err
 	}
 
-	if len(settings.Hooks) == 0 {
+	hooksData, exists := settings.Data["hooks"]
+	if !exists {
+		return fmt.Errorf("no hooks")
+	}
+
+	hooksMap, ok := hooksData.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid hooks format")
+	}
+
+	if len(hooksMap) == 0 {
 		return fmt.Errorf("no hooks")
 	}
 
 	hasShush := hooks.HasShushHook(settings)
 
-	for event, configs := range settings.Hooks {
-		for _, config := range configs {
-			for _, hook := range config.Hooks {
-				if hook.Command == "shush --changes-only" {
-					fmt.Printf("  ✓ shush --changes-only (%s: %s)\n", event, config.Matcher)
+	for event, eventData := range hooksMap {
+		configs, ok := eventData.([]interface{})
+		if !ok {
+			continue
+		}
+
+		for _, configData := range configs {
+			config, ok := configData.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			matcher, _ := config["matcher"].(string)
+			hooksData, exists := config["hooks"]
+			if !exists {
+				continue
+			}
+
+			hooks, ok := hooksData.([]interface{})
+			if !ok {
+				continue
+			}
+
+			for _, hookData := range hooks {
+				hook, ok := hookData.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				command, _ := hook["command"].(string)
+				if command == "shush --changes-only" {
+					fmt.Printf("  ✓ shush --changes-only (%s: %s)\n", event, matcher)
 				} else {
-					fmt.Printf("  ✓ %s (%s: %s)\n", hook.Command, event, config.Matcher)
+					fmt.Printf("  ✓ %s (%s: %s)\n", command, event, matcher)
 				}
 			}
 		}

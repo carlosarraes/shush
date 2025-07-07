@@ -12,7 +12,7 @@ import (
 	"github.com/carlosarraes/shush/internal/types"
 )
 
-var version = "0.2.2"
+var version = "0.2.3"
 
 func main() {
 	var cliArgs types.CLI

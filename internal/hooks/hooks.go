@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type HookScope int
@@ -17,7 +18,7 @@ const (
 )
 
 type ClaudeSettings struct {
-	Hooks map[string][]EventConfig `json:"hooks,omitempty"`
+	Data map[string]interface{} `json:"-"`
 }
 
 type EventConfig struct {
@@ -58,28 +59,50 @@ func EnsureSettingsDirectory(settingsPath string) error {
 	return nil
 }
 
+func CreateBackup(settingsPath string) error {
+	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	timestamp := time.Now().Unix()
+	backupPath := fmt.Sprintf("%s.backup.%d", settingsPath, timestamp)
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return fmt.Errorf("failed to read original settings for backup: %w", err)
+	}
+
+	if err := os.WriteFile(backupPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to create backup at %s: %w", backupPath, err)
+	}
+
+	fmt.Printf("✓ Backup created: %s\n", backupPath)
+	return nil
+}
+
 func LoadSettings(path string) (*ClaudeSettings, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-
 			return &ClaudeSettings{
-				Hooks: make(map[string][]EventConfig),
+				Data: make(map[string]interface{}),
 			}, nil
 		}
 		return nil, fmt.Errorf("failed to read settings file %s: %w", path, err)
 	}
 
-	var settings ClaudeSettings
-	if err := json.Unmarshal(data, &settings); err != nil {
+	var allSettings map[string]interface{}
+	if err := json.Unmarshal(data, &allSettings); err != nil {
 		return nil, fmt.Errorf("failed to parse settings file %s: %w", path, err)
 	}
 
-	if settings.Hooks == nil {
-		settings.Hooks = make(map[string][]EventConfig)
+	if allSettings == nil {
+		allSettings = make(map[string]interface{})
 	}
 
-	return &settings, nil
+	return &ClaudeSettings{
+		Data: allSettings,
+	}, nil
 }
 
 func SaveSettings(path string, settings *ClaudeSettings) error {
@@ -87,7 +110,7 @@ func SaveSettings(path string, settings *ClaudeSettings) error {
 		return err
 	}
 
-	data, err := json.MarshalIndent(settings, "", "  ")
+	data, err := json.MarshalIndent(settings.Data, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
@@ -115,18 +138,55 @@ func CreateShushEventConfig() EventConfig {
 }
 
 func HasShushHook(settings *ClaudeSettings) bool {
-	if settings.Hooks == nil {
-		return false
-	}
-
-	postToolUseConfigs, exists := settings.Hooks["PostToolUse"]
+	hooksData, exists := settings.Data["hooks"]
 	if !exists {
 		return false
 	}
 
-	for _, config := range postToolUseConfigs {
-		for _, hook := range config.Hooks {
-			if strings.Contains(hook.Command, "shush --changes-only") {
+	hooksMap, ok := hooksData.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	postToolUseData, exists := hooksMap["PostToolUse"]
+	if !exists {
+		return false
+	}
+
+	postToolUseConfigs, ok := postToolUseData.([]interface{})
+	if !ok {
+		return false
+	}
+
+	for _, configData := range postToolUseConfigs {
+		config, ok := configData.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		hooksData, exists := config["hooks"]
+		if !exists {
+			continue
+		}
+
+		hooks, ok := hooksData.([]interface{})
+		if !ok {
+			continue
+		}
+
+		for _, hookData := range hooks {
+			hook, ok := hookData.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			command, exists := hook["command"]
+			if !exists {
+				continue
+			}
+
+			commandStr, ok := command.(string)
+			if ok && strings.Contains(commandStr, "shush --changes-only") {
 				return true
 			}
 		}
@@ -136,71 +196,175 @@ func HasShushHook(settings *ClaudeSettings) bool {
 }
 
 func AddShushHook(settings *ClaudeSettings) error {
-	if settings.Hooks == nil {
-		settings.Hooks = make(map[string][]EventConfig)
-	}
-
 	if HasShushHook(settings) {
 		return errors.New("shush hook already installed")
 	}
 
-	postToolUseConfigs, exists := settings.Hooks["PostToolUse"]
-	if !exists {
+	if _, exists := settings.Data["hooks"]; !exists {
+		settings.Data["hooks"] = make(map[string]interface{})
+	}
 
-		settings.Hooks["PostToolUse"] = []EventConfig{CreateShushEventConfig()}
+	hooksMap := settings.Data["hooks"].(map[string]interface{})
+
+	shushHook := map[string]interface{}{
+		"type":    "command",
+		"command": "shush --changes-only",
+		"timeout": 30,
+	}
+
+	if postToolUseData, exists := hooksMap["PostToolUse"]; exists {
+		postToolUseConfigs, ok := postToolUseData.([]interface{})
+		if !ok {
+			return errors.New("invalid PostToolUse format in existing settings")
+		}
+
+		for _, configData := range postToolUseConfigs {
+			config, ok := configData.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			matcher, exists := config["matcher"]
+			if !exists {
+				continue
+			}
+
+			matcherStr, ok := matcher.(string)
+			if !ok {
+				continue
+			}
+
+			if matcherStr == "Write|Edit|MultiEdit" {
+				hooksData, exists := config["hooks"]
+				if !exists {
+					config["hooks"] = []interface{}{shushHook}
+					return nil
+				}
+
+				hooks, ok := hooksData.([]interface{})
+				if !ok {
+					return errors.New("invalid hooks format in existing settings")
+				}
+
+				config["hooks"] = append(hooks, shushHook)
+				return nil
+			}
+		}
+
+		newConfig := map[string]interface{}{
+			"matcher": "Write|Edit|MultiEdit",
+			"hooks":   []interface{}{shushHook},
+		}
+
+		hooksMap["PostToolUse"] = append(postToolUseConfigs, newConfig)
 		return nil
 	}
 
-	for i, config := range postToolUseConfigs {
-		if config.Matcher == "Write|Edit|MultiEdit" || config.Matcher == "" {
-
-			postToolUseConfigs[i].Hooks = append(config.Hooks, CreateShushHookEntry())
-			return nil
-		}
+	newConfig := map[string]interface{}{
+		"matcher": "Write|Edit|MultiEdit",
+		"hooks":   []interface{}{shushHook},
 	}
 
-	settings.Hooks["PostToolUse"] = append(postToolUseConfigs, CreateShushEventConfig())
+	hooksMap["PostToolUse"] = []interface{}{newConfig}
 	return nil
 }
 
 func RemoveShushHook(settings *ClaudeSettings) error {
-	if settings.Hooks == nil {
-		return errors.New("no hooks configuration found")
-	}
-
-	postToolUseConfigs, exists := settings.Hooks["PostToolUse"]
-	if !exists {
+	if !HasShushHook(settings) {
 		return errors.New("shush hook not found")
 	}
 
+	hooksData, exists := settings.Data["hooks"]
+	if !exists {
+		return errors.New("no hooks configuration found")
+	}
+
+	hooksMap, ok := hooksData.(map[string]interface{})
+	if !ok {
+		return errors.New("invalid hooks format")
+	}
+
+	postToolUseData, exists := hooksMap["PostToolUse"]
+	if !exists {
+		return errors.New("no PostToolUse hooks found")
+	}
+
+	postToolUseConfigs, ok := postToolUseData.([]interface{})
+	if !ok {
+		return errors.New("invalid PostToolUse format")
+	}
+
 	found := false
-	for i, config := range postToolUseConfigs {
-		newHooks := make([]HookEntry, 0, len(config.Hooks))
-		for _, hook := range config.Hooks {
-			if !strings.Contains(hook.Command, "shush --changes-only") {
-				newHooks = append(newHooks, hook)
-			} else {
+	var newConfigs []interface{}
+
+	for _, configData := range postToolUseConfigs {
+		config, ok := configData.(map[string]interface{})
+		if !ok {
+			newConfigs = append(newConfigs, configData)
+			continue
+		}
+
+		hooksData, exists := config["hooks"]
+		if !exists {
+			newConfigs = append(newConfigs, configData)
+			continue
+		}
+
+		hooks, ok := hooksData.([]interface{})
+		if !ok {
+			newConfigs = append(newConfigs, configData)
+			continue
+		}
+
+		var newHooks []interface{}
+		for _, hookData := range hooks {
+			hook, ok := hookData.(map[string]interface{})
+			if !ok {
+				newHooks = append(newHooks, hookData)
+				continue
+			}
+
+			command, exists := hook["command"]
+			if !exists {
+				newHooks = append(newHooks, hookData)
+				continue
+			}
+
+			commandStr, ok := command.(string)
+			if !ok {
+				newHooks = append(newHooks, hookData)
+				continue
+			}
+
+			if strings.Contains(commandStr, "shush --changes-only") {
 				found = true
+			} else {
+				newHooks = append(newHooks, hookData)
 			}
 		}
-		postToolUseConfigs[i].Hooks = newHooks
+
+		if len(newHooks) > 0 {
+			newConfig := make(map[string]interface{})
+			for k, v := range config {
+				newConfig[k] = v
+			}
+			newConfig["hooks"] = newHooks
+			newConfigs = append(newConfigs, newConfig)
+		}
 	}
 
 	if !found {
 		return errors.New("shush hook not found")
 	}
 
-	filteredConfigs := make([]EventConfig, 0, len(postToolUseConfigs))
-	for _, config := range postToolUseConfigs {
-		if len(config.Hooks) > 0 {
-			filteredConfigs = append(filteredConfigs, config)
-		}
+	if len(newConfigs) == 0 {
+		delete(hooksMap, "PostToolUse")
+	} else {
+		hooksMap["PostToolUse"] = newConfigs
 	}
 
-	if len(filteredConfigs) == 0 {
-		delete(settings.Hooks, "PostToolUse")
-	} else {
-		settings.Hooks["PostToolUse"] = filteredConfigs
+	if len(hooksMap) == 0 {
+		delete(settings.Data, "hooks")
 	}
 
 	return nil

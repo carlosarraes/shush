@@ -17,6 +17,24 @@ Download the binary for your platform from the [releases page](https://github.co
 
 ## Usage
 
+### 🤖 Claude Code Integration (Most Popular!)
+
+```bash
+# Install automatic comment cleanup after Claude modifies files
+shush --install-hook              # User-wide (all projects)
+shush --install-hook -s project   # Project-specific only
+
+# Manage hooks
+shush --hook-status               # Check installation status
+shush --list-hooks                # Show all configured hooks
+shush --uninstall-hook            # Remove hooks
+
+# Once installed, comments are automatically cleaned whenever Claude Code 
+# uses Write, Edit, or MultiEdit tools! Respects your .shush.toml config.
+```
+
+### 📂 Basic File Operations
+
 ```bash
 # Remove all comments from a file
 shush file.py
@@ -44,18 +62,23 @@ shush script.py --preserve-lines
 
 # Verbose output
 shush app.go --verbose
+```
 
+### 🔀 Git-Aware Processing
+
+```bash
 # Git-aware processing (only process changed lines)
 shush --staged                    # Clean comments from staged changes
 shush --unstaged                  # Clean comments from unstaged changes  
 shush --changes-only              # Clean comments from all changes
+```
 
-# Configuration and hooks management
+### ⚙️ Configuration Management
+
+```bash
+# Configuration management
 shush --create-config             # Create .shush.toml configuration
 shush --config                    # Show current configuration
-shush --install-hook              # Install Claude Code hooks (user-wide)
-shush --install-hook -s project   # Install project-specific hooks
-shush --hook-status               # Check hook installation status
 
 # Combine flags for complex operations
 shush src/ --recursive --inline --dry-run --verbose
