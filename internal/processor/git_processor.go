@@ -204,18 +204,27 @@ func (p *Processor) removeCommentsFromLine(line string, language types.Language,
 	result := line
 	hasChanges := false
 
-	if !p.cli.Block && language.LineComment != "" {
-
-		if idx := p.findCommentIndex(result, language.LineComment); idx != -1 {
-
-			comment := strings.TrimSpace(result[idx:])
-
-			if cfg.ShouldPreserveComment(comment) {
-				return originalLine
+	if !p.cli.Block {
+		if language.LineComment != "" {
+			if idx := p.findCommentIndex(result, language.LineComment); idx != -1 {
+				comment := strings.TrimSpace(result[idx:])
+				if cfg.ShouldPreserveComment(comment) {
+					return originalLine
+				}
+				result = result[:idx]
+				hasChanges = true
 			}
+		}
 
-			result = result[:idx]
-			hasChanges = true
+		if language.AlternateLineComment != "" && !hasChanges {
+			if idx := p.findCommentIndex(result, language.AlternateLineComment); idx != -1 {
+				comment := strings.TrimSpace(result[idx:])
+				if cfg.ShouldPreserveComment(comment) {
+					return originalLine
+				}
+				result = result[:idx]
+				hasChanges = true
+			}
 		}
 	}
 
@@ -402,8 +411,11 @@ func (p *Processor) findCommentIndex(line, commentMarker string) int {
 
 // lineHasComment checks if a line contains comments
 func (p *Processor) lineHasComment(line string, language types.Language) bool {
-
 	if language.LineComment != "" && p.findCommentIndex(line, language.LineComment) != -1 {
+		return true
+	}
+
+	if language.AlternateLineComment != "" && p.findCommentIndex(line, language.AlternateLineComment) != -1 {
 		return true
 	}
 

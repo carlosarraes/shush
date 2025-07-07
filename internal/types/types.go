@@ -26,8 +26,9 @@ type CLI struct {
 }
 
 type Language struct {
-	LineComment  string
-	BlockComment *BlockComment
+	LineComment          string
+	AlternateLineComment string
+	BlockComment         *BlockComment
 }
 
 type BlockComment struct {
