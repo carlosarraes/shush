@@ -1,4 +1,5 @@
 # shush 🤫
+**S**loppily **H**ushing **U**nwanted **S**ource-code **H**eavy (comments)
 
 Remove comments from source code files blazingly fast using in-memory processing. Features git-aware processing, smart comment preservation, and Claude Code integration.
 

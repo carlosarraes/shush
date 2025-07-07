@@ -25,7 +25,7 @@ make build
 # Quick development build (faster, unoptimized)
 make build-dev
 
-# Run all checks (format, vet, lint, test)
+# Run all checks (format, vet, test) - NOTE: We don't use golangci-lint
 make check
 
 # Development cycle (build + quick test)

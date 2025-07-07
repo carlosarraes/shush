@@ -17,7 +17,7 @@ var version = "0.2.1"
 func main() {
 	var cliArgs types.CLI
 	kong.Parse(&cliArgs,
-		kong.Description("Remove comments from source code files"),
+		kong.Description("SHUSH: Sloppily Hushing Unwanted Source-code Heavy"),
 		kong.Vars{"version": version})
 
 	if cliArgs.LLM {

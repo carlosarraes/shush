@@ -4,6 +4,7 @@ import "fmt"
 
 func Show() {
 	fmt.Print(`# Shush CLI - LLM Guide
+**S**loppily **H**ushing **U**nwanted **S**ource-code **H**eavy (comments)
 
 ## Overview
 Shush is a fast comment removal tool for source code files using in-memory processing.

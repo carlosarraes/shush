@@ -43,13 +43,10 @@ test-cover: ## Run tests with coverage
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
-# Code quality
-lint: ## Run golangci-lint
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run; \
-	else \
-		echo "golangci-lint not installed. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
-	fi
+# Code quality - NOTE: We don't use golangci-lint in this project
+lint: ## Run basic linting (go vet only)
+	@echo "Running basic linting with go vet..."
+	go vet ./...
 
 fmt: ## Format code
 	go fmt ./...
@@ -57,7 +54,7 @@ fmt: ## Format code
 vet: ## Run go vet
 	go vet ./...
 
-check: fmt vet lint test ## Run all checks (format, vet, lint, test)
+check: fmt vet test ## Run all checks (format, vet, test)
 
 # Dependency management
 deps: ## Download dependencies

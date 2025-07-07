@@ -3,6 +3,7 @@ package processor
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -208,22 +209,8 @@ func (p *Processor) createBackup(filename string) error {
 	}
 	defer dstFile.Close()
 
-	buffer := make([]byte, 1024)
-	for {
-		n, err := srcFile.Read(buffer)
-		if err != nil && err.Error() != "EOF" {
-			return err
-		}
-		if n == 0 {
-			break
-		}
-
-		if _, err := dstFile.Write(buffer[:n]); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }
 
 func (p *Processor) showPreview(filename string, language types.Language) error {
