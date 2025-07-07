@@ -11,6 +11,7 @@ type CLI struct {
 	Backup        bool             `help:"Create backup files before modification"`
 	Verbose       bool             `help:"Show detailed output"`
 	PreserveLines bool             `help:"Remove comments but preserve empty lines"`
+	ContextLines  int              `short:"c" help:"Number of context lines to show in preview mode (default: from config)" default:"-1"`
 	LLM           bool             `help:"Show LLM-friendly usage guide"`
 	ChangesOnly   bool             `help:"Remove comments only from git changes (staged + unstaged + untracked)"`
 	Staged        bool             `help:"Remove comments only from staged git changes"`

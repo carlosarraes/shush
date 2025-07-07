@@ -220,6 +220,11 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 		cfg = config.Default()
 	}
 
+	contextLines := cfg.ContextLines
+	if p.cli.ContextLines >= 0 {
+		contextLines = p.cli.ContextLines
+	}
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -231,43 +236,69 @@ func (p *Processor) showPreview(filename string, language types.Language) error 
 	gray := color.New(color.FgHiBlack)
 	yellow := color.New(color.FgYellow)
 	cyan := color.New(color.FgCyan)
+	dimGray := color.New(color.FgWhite, color.Faint)
 
 	fmt.Printf("\n%s %s\n\n", yellow.Sprint("Preview:"), filename)
 
 	scanner := bufio.NewScanner(file)
-	lineNum := 0
+	var lines []string
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
 	changedCount := 0
 	keptCount := 0
 	preservedCount := 0
 
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		newLine := p.removeCommentsFromLine(line, language, cfg)
+	var changes []changeInfo
 
-		lineNumStr := gray.Sprintf("%4d", lineNum)
+	for i, line := range lines {
+		lineNum := i + 1
+		newLine := p.removeCommentsFromLine(line, language, cfg)
 
 		if newLine != line {
 			changedCount++
 			if newLine == "" {
-				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(line))
+				changes = append(changes, changeInfo{lineNum, line, newLine, "removed"})
 			} else {
-				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(line))
-				fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint("+"), green.Sprint(newLine))
+				changes = append(changes, changeInfo{lineNum, line, newLine, "modified"})
 			}
 		} else {
 			hasComment := p.lineHasComment(line, language)
 			if hasComment {
 				preservedCount++
-				fmt.Printf("%s %s %s\n", lineNumStr, cyan.Sprint("P"), line)
+				changes = append(changes, changeInfo{lineNum, line, line, "preserved"})
 			} else {
 				keptCount++
 			}
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return err
+	if len(changes) == 0 {
+		fmt.Printf("%s No comments found to remove\n", gray.Sprint("→"))
+		fmt.Println()
+		return nil
+	}
+
+	if contextLines > 0 {
+		p.displayChangesWithContext(lines, changes, contextLines, red, green, nil, gray, dimGray)
+	} else {
+		for _, change := range changes {
+			lineNumStr := gray.Sprintf("%4d", change.lineNum)
+			switch change.changeType {
+			case "removed":
+				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(change.oldLine))
+			case "modified":
+				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(change.oldLine))
+				fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint("+"), green.Sprint(change.newLine))
+			case "preserved":
+				fmt.Printf("%s %s %s\n", lineNumStr, cyan.Sprint("P"), change.oldLine)
+			}
+		}
 	}
 
 	fmt.Printf("\n%s\n", strings.Repeat("-", 50))

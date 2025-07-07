@@ -297,6 +297,11 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 		cfg = config.Default()
 	}
 
+	contextLines := cfg.ContextLines
+	if p.cli.ContextLines >= 0 {
+		contextLines = p.cli.ContextLines
+	}
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -308,6 +313,7 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 	blue := color.New(color.FgBlue)
 	gray := color.New(color.FgHiBlack)
 	yellow := color.New(color.FgYellow)
+	dimGray := color.New(color.FgWhite, color.Faint)
 
 	fmt.Printf("\n%s %s\n", yellow.Sprint("Git Preview:"), filename)
 	if len(lineRanges) == 0 {
@@ -318,37 +324,40 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 	fmt.Println()
 
 	scanner := bufio.NewScanner(file)
-	lineNum := 0
+	var lines []string
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
 	keptCount := 0
 	changedCount := 0
 	preservedCount := 0
-
 	processEntireFile := len(lineRanges) == 0
 
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		shouldProcess := processEntireFile || git.IsInLineRanges(lineNum, lineRanges)
+	var changes []changeInfo
 
-		lineNumStr := gray.Sprintf("%4d", lineNum)
+	for i, line := range lines {
+		lineNum := i + 1
+		shouldProcess := processEntireFile || git.IsInLineRanges(lineNum, lineRanges)
 
 		if shouldProcess {
 			newLine := p.removeCommentsFromLine(line, language, cfg)
 			if newLine != line {
 				changedCount++
 				if newLine == "" {
-					fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(line))
+					changes = append(changes, changeInfo{lineNum, line, newLine, "removed"})
 				} else {
-					fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(line))
-					fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint("+"), green.Sprint(newLine))
+					changes = append(changes, changeInfo{lineNum, line, newLine, "modified"})
 				}
 			} else {
-				// Check if this line has comments that were preserved
 				hasComment := p.lineHasComment(line, language)
 				if hasComment {
 					preservedCount++
-					cyan := color.New(color.FgCyan)
-					fmt.Printf("%s %s %s\n", lineNumStr, cyan.Sprint("P"), line)
+					changes = append(changes, changeInfo{lineNum, line, line, "preserved"})
 				} else {
 					keptCount++
 				}
@@ -358,8 +367,28 @@ func (p *Processor) showGitPreviewWithTotals(filename string, lineRanges []git.L
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return err
+	if len(changes) == 0 {
+		fmt.Printf("%s No comments found to remove\n", gray.Sprint("→"))
+		fmt.Println()
+		return nil
+	}
+
+	if contextLines > 0 {
+		p.displayChangesWithContext(lines, changes, contextLines, red, green, blue, gray, dimGray)
+	} else {
+		for _, change := range changes {
+			lineNumStr := gray.Sprintf("%4d", change.lineNum)
+			switch change.changeType {
+			case "removed":
+				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(change.oldLine))
+			case "modified":
+				fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(change.oldLine))
+				fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint("+"), green.Sprint(change.newLine))
+			case "preserved":
+				cyan := color.New(color.FgCyan)
+				fmt.Printf("%s %s %s\n", lineNumStr, cyan.Sprint("P"), change.oldLine)
+			}
+		}
 	}
 
 	fmt.Printf("\n%s\n", strings.Repeat("-", 50))
@@ -426,6 +455,75 @@ func (p *Processor) lineHasComment(line string, language types.Language) bool {
 	}
 
 	return false
+}
+
+type changeInfo struct {
+	lineNum    int
+	oldLine    string
+	newLine    string
+	changeType string
+}
+
+func (p *Processor) displayChangesWithContext(lines []string, changes []changeInfo, contextLines int, red, green, blue, gray, dimGray *color.Color) {
+	if len(changes) == 0 {
+		return
+	}
+
+	cyan := color.New(color.FgCyan)
+	totalLines := len(lines)
+	displayedLines := make(map[int]bool)
+
+	for i, change := range changes {
+		startLine := max(1, change.lineNum-contextLines)
+		endLine := min(totalLines, change.lineNum+contextLines)
+
+		if i > 0 {
+			prevEndLine := min(totalLines, changes[i-1].lineNum+contextLines)
+			if startLine > prevEndLine+3 {
+				fmt.Printf("%s\n", dimGray.Sprint("    ..."))
+			} else {
+				startLine = prevEndLine + 1
+			}
+		}
+
+		for lineNum := startLine; lineNum <= endLine; lineNum++ {
+			if displayedLines[lineNum] {
+				continue
+			}
+			displayedLines[lineNum] = true
+
+			lineNumStr := gray.Sprintf("%4d", lineNum)
+			line := lines[lineNum-1]
+
+			if lineNum == change.lineNum {
+				switch change.changeType {
+				case "removed":
+					fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("-"), red.Sprint(line))
+				case "modified":
+					fmt.Printf("%s %s %s\n", lineNumStr, red.Sprint("~"), red.Sprint(line))
+					fmt.Printf("%s %s %s\n", lineNumStr, green.Sprint("+"), green.Sprint(change.newLine))
+				case "preserved":
+					fmt.Printf("%s %s %s\n", lineNumStr, cyan.Sprint("P"), line)
+				}
+			} else {
+				fmt.Printf("%s %s %s\n", lineNumStr, dimGray.Sprint(" "), dimGray.Sprint(line))
+			}
+		}
+	}
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (p *Processor) showGitTotals(totals *GitTotals) {

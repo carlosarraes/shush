@@ -9,7 +9,8 @@ import (
 )
 
 type Config struct {
-	Preserve []string `toml:"preserve"`
+	Preserve     []string `toml:"preserve"`
+	ContextLines int      `toml:"context_lines"`
 }
 
 func Default() *Config {
@@ -27,6 +28,7 @@ func Default() *Config {
 			"mypy:",
 			"type: ignore",
 		},
+		ContextLines: 3,
 	}
 }
 
@@ -110,8 +112,12 @@ func loadFromFile(path string) (*Config, error) {
 		return nil, err
 	}
 
+	defaults := Default()
 	if len(config.Preserve) == 0 {
-		config.Preserve = Default().Preserve
+		config.Preserve = defaults.Preserve
+	}
+	if config.ContextLines == 0 {
+		config.ContextLines = defaults.ContextLines
 	}
 
 	return config, nil
@@ -200,6 +206,9 @@ preserve = [
     "*IMPORTANT*",   # Example wildcard: preserves any comment containing IMPORTANT
     "*DEBUG*",       # Example wildcard: preserves any comment containing DEBUG
 ]
+
+# Number of context lines to show around changes in preview mode (default: 3)
+context_lines = 3
 `
 
 	return os.WriteFile(".shush.toml", []byte(content), 0644)
