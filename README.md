@@ -17,7 +17,7 @@ Download the binary for your platform from the [releases page](https://github.co
 
 ## Usage
 
-### 🤖 Claude Code Integration (Most Popular!)
+### 🤖 Claude Code Integration
 
 ```bash
 # Install automatic comment cleanup after Claude modifies files
@@ -54,6 +54,9 @@ shush file.c --block
 # Preview what would be removed (dry run)
 shush script.sh --dry-run
 
+# Preview with context lines (like lazygit)
+shush script.sh --dry-run --context-lines 5
+
 # Create a backup before modifying
 shush config.lua --backup
 
@@ -82,6 +85,24 @@ shush --config                    # Show current configuration
 
 # Combine flags for complex operations
 shush src/ --recursive --inline --dry-run --verbose
+```
+
+### 🚫 File Exclusion (.shushignore)
+
+```bash
+# Create .shushignore file to exclude files/directories
+echo "*.tmp" > .shushignore       # Ignore all .tmp files
+echo "build/" >> .shushignore     # Ignore build directory
+echo "test*.js" >> .shushignore   # Ignore test files
+echo "!important.js" >> .shushignore  # But keep important.js
+
+# Global ignore file (applies to all projects)
+echo "node_modules/" > ~/.config/.shushignore
+
+# .shushignore works everywhere
+shush src/ --recursive            # Respects ignore patterns
+shush --staged --dry-run          # Git operations respect ignore patterns
+shush specific-file.js            # Shows "File is in .shushignore, ignoring"
 ```
 
 ## Supported Languages
@@ -148,6 +169,7 @@ shush src/ --recursive --inline --dry-run --verbose
 --backup           Create backup files before modification
 --verbose          Show detailed output
 --preserve-lines   Keep comment-only lines as empty lines (indentation always preserved)
+-c, --context-lines Number of context lines to show in preview mode (default: from config)
 
 # Git-aware flags
 --changes-only Remove comments only from git changes (staged + unstaged + untracked)
@@ -249,6 +271,11 @@ shush important.go --backup
 
 # See what would be removed first
 shush config.yaml --dry-run --verbose
+
+# Preview with context lines (lazygit style)
+shush large-file.js --dry-run --context-lines 5    # Show 5 lines around changes
+shush changes.py --dry-run -c 0                     # Show only changes (no context)
+shush code.go --dry-run                             # Use config default (3 lines)
 ```
 
 ## Comment Preservation Configuration 🎯
@@ -282,6 +309,9 @@ preserve = [
     "*IMPORTANT*",   # Wildcard: preserves any comment containing IMPORTANT
     "*DEBUG*",       # Wildcard: preserves any comment containing DEBUG
 ]
+
+# Number of context lines to show around changes in preview mode (default: 3)
+context_lines = 3
 ```
 
 ### Configuration Discovery
@@ -290,6 +320,29 @@ Shush searches for configuration in this order:
 1. `.shush.toml` (current directory)
 2. `.shush.toml` (git repository root)  
 3. `~/.config/.shush.toml` (global user config)
+
+### File Exclusion Patterns (.shushignore)
+
+Create `.shushignore` files to exclude files and directories from processing:
+
+```bash
+# .shushignore syntax (like .gitignore)
+*.tmp              # Ignore all .tmp files
+*.log              # Ignore all .log files
+build/             # Ignore build directory and all contents
+node_modules/      # Ignore node_modules directory
+test*.js           # Ignore test files (wildcards supported)
+*build*.js         # Ignore any file with "build" in the name
+!important.js      # Negation: don't ignore important.js (even if matched above)
+
+# Comments and blank lines are ignored
+# This is a comment
+```
+
+**Ignore File Locations:**
+- `.shushignore` (project root or current directory)
+- `~/.config/.shushignore` (global user ignore patterns)
+- Both files are merged (global + project patterns)
 
 ## Claude Code Integration 🤖
 
