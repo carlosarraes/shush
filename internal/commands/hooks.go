@@ -12,9 +12,9 @@ import (
 func HandleHooks(cli types.CLI) error {
 	switch {
 	case cli.InstallHook:
-		return InstallHooks(cli.HookScope)
+		return InstallHooks(cli.Project)
 	case cli.UninstallHook:
-		return UninstallHooks(cli.HookScope)
+		return UninstallHooks(cli.Project)
 	case cli.ListHooks:
 		return ListHooks()
 	case cli.HookStatus:
@@ -23,9 +23,9 @@ func HandleHooks(cli types.CLI) error {
 	return nil
 }
 
-func InstallHooks(scope string) error {
+func InstallHooks(projectScope bool) error {
 	hookScope := hooks.ScopeUser
-	if scope == "project" {
+	if projectScope {
 		hookScope = hooks.ScopeProject
 	}
 
@@ -88,9 +88,9 @@ func InstallHooks(scope string) error {
 	return nil
 }
 
-func UninstallHooks(scope string) error {
+func UninstallHooks(projectScope bool) error {
 	hookScope := hooks.ScopeUser
-	if scope == "project" {
+	if projectScope {
 		hookScope = hooks.ScopeProject
 	}
 
@@ -185,7 +185,7 @@ func ShowHooksStatus() error {
 	if userHasShush && projectHasShush {
 		fmt.Println("\n⚠️  Warning: Both user-wide and project hooks are installed")
 		fmt.Println("   This will cause shush to run twice on every file modification")
-		fmt.Println("   Consider removing project hooks: shush --uninstall-hook -s project")
+		fmt.Println("   Consider removing project hooks: shush --uninstall-hook --project")
 	} else if userHasShush {
 		fmt.Println("\n✓ User-wide hooks will handle all projects including this one")
 	} else if projectHasShush {

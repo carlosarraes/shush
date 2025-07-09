@@ -22,7 +22,7 @@ Download the binary for your platform from the [releases page](https://github.co
 ```bash
 # Install automatic comment cleanup after Claude modifies files
 shush --install-hook              # User-wide (all projects)
-shush --install-hook -s project   # Project-specific only
+shush --install-hook --project    # Project-specific only
 
 # Manage hooks
 shush --hook-status               # Check installation status
@@ -185,7 +185,7 @@ shush specific-file.js            # Shows "File is in .shushignore, ignoring"
 --uninstall-hook Uninstall Claude Code hooks  
 --list-hooks     List current Claude Code hooks configuration
 --hook-status    Check if shush hooks are installed
--s, --hook-scope Hook scope: 'project' for local, default for user-wide
+--project      Use project scope for hook operations (default: user-wide)
 
 # Utility flags
 --version      Show version information
@@ -351,7 +351,7 @@ Seamless integration with Claude Code via hooks - **available now**:
 ```bash
 # Install automatic comment cleanup after Claude modifies files
 shush --install-hook               # User-wide (all projects)
-shush --install-hook -s project    # Project-specific only
+shush --install-hook --project     # Project-specific only
 
 # Manage hooks
 shush --hook-status                # Check installation status

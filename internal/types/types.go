@@ -20,7 +20,7 @@ type CLI struct {
 	UninstallHook bool             `help:"Uninstall Claude Code hooks"`
 	ListHooks     bool             `help:"List current Claude Code hooks configuration"`
 	HookStatus    bool             `help:"Check if shush hooks are installed"`
-	HookScope     string           `short:"s" help:"Hook scope: 'project' for local, default for user-wide"`
+	Project       bool             `help:"Use project scope for hook operations (default: user-wide)"`
 	Config        bool             `help:"Show current configuration and location"`
 	CreateConfig  bool             `help:"Create example .shush.toml configuration file"`
 	Version       kong.VersionFlag `help:"Show version information"`

@@ -126,7 +126,7 @@ func CreateShushHookEntry() HookEntry {
 	return HookEntry{
 		Type:    "command",
 		Command: "shush --changes-only",
-		Timeout: 30,
+		Timeout: 5,
 	}
 }
 
@@ -209,7 +209,7 @@ func AddShushHook(settings *ClaudeSettings) error {
 	shushHook := map[string]interface{}{
 		"type":    "command",
 		"command": "shush --changes-only",
-		"timeout": 30,
+		"timeout": 5,
 	}
 
 	if postToolUseData, exists := hooksMap["PostToolUse"]; exists {
