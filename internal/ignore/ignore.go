@@ -16,6 +16,7 @@ type pattern struct {
 	normalized  string
 	isNegation  bool
 	isDirectory bool
+	source      string
 }
 
 func New() *Ignore {
@@ -27,14 +28,19 @@ func New() *Ignore {
 func Load() (*Ignore, error) {
 	ignore := New()
 
+	if gitignorePath := getGitIgnorePath(); gitignorePath != "" {
+		if err := ignore.loadFromFileWithSource(gitignorePath, "gitignore"); err != nil && !os.IsNotExist(err) {
+		}
+	}
+
 	if globalPath := getGlobalIgnorePath(); globalPath != "" {
-		if err := ignore.loadFromFile(globalPath); err != nil && !os.IsNotExist(err) {
+		if err := ignore.loadFromFileWithSource(globalPath, "global"); err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
 	}
 
 	if projectPath := getProjectIgnorePath(); projectPath != "" {
-		if err := ignore.loadFromFile(projectPath); err != nil && !os.IsNotExist(err) {
+		if err := ignore.loadFromFileWithSource(projectPath, "project"); err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
 	}
@@ -43,6 +49,10 @@ func Load() (*Ignore, error) {
 }
 
 func (i *Ignore) loadFromFile(path string) error {
+	return i.loadFromFileWithSource(path, "")
+}
+
+func (i *Ignore) loadFromFileWithSource(path string, source string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -57,15 +67,20 @@ func (i *Ignore) loadFromFile(path string) error {
 			continue
 		}
 
-		i.addPattern(line)
+		i.addPatternWithSource(line, source)
 	}
 
 	return scanner.Err()
 }
 
 func (i *Ignore) addPattern(patternStr string) {
+	i.addPatternWithSource(patternStr, "")
+}
+
+func (i *Ignore) addPatternWithSource(patternStr string, source string) {
 	p := pattern{
 		original: patternStr,
+		source:   source,
 	}
 
 	if strings.HasPrefix(patternStr, "!") {
@@ -176,6 +191,27 @@ func (i *Ignore) wildcardMatch(pattern, path string) bool {
 	}
 
 	return true
+}
+
+func getGitIgnorePath() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	localGitIgnore := filepath.Join(cwd, ".gitignore")
+	if fileExists(localGitIgnore) {
+		return localGitIgnore
+	}
+
+	if gitRoot := findGitRoot(cwd); gitRoot != "" {
+		gitRootIgnore := filepath.Join(gitRoot, ".gitignore")
+		if fileExists(gitRootIgnore) && gitRootIgnore != localGitIgnore {
+			return gitRootIgnore
+		}
+	}
+
+	return ""
 }
 
 func getGlobalIgnorePath() string {
