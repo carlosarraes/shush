@@ -1,26 +1,24 @@
 # shush 🤫
 **S**loppily **H**ushing **U**nwanted **S**ource-code **H**eavy (comments)
 
-Remove comments from source code files blazingly fast using in-memory processing. Features git-aware processing, smart comment preservation, and Claude Code integration.
+Remove comments from source code files blazingly fast. Features Claude Code integration, smart comment preservation, and git-aware processing. Supports [40+ file extensions](SUPPORTED_LANGUAGES.md) across most popular programming languages.
 
 ## Installation
 
 ### Quick Install (Linux/macOS)
-
 ```bash
 curl -sSf https://raw.githubusercontent.com/carlosarraes/shush/main/install.sh | sh
 ```
 
 ### Manual Download
-
 Download the binary for your platform from the [releases page](https://github.com/carlosarraes/shush/releases).
 
-## Usage
+## 🤖 Claude Code Integration
 
-### 🤖 Claude Code Integration
+Automatic comment cleanup whenever Claude Code modifies files:
 
 ```bash
-# Install automatic comment cleanup after Claude modifies files
+# Install hooks
 shush --install-hook              # User-wide (all projects)
 shush --install-hook --project    # Project-specific only
 
@@ -28,133 +26,85 @@ shush --install-hook --project    # Project-specific only
 shush --hook-status               # Check installation status
 shush --list-hooks                # Show all configured hooks
 shush --uninstall-hook            # Remove hooks
-
-# Once installed, comments are automatically cleaned whenever Claude Code 
-# uses Write, Edit, or MultiEdit tools! Respects your .shush.toml config.
 ```
 
-### 📂 Basic File Operations
+Once installed, comments are automatically cleaned whenever Claude Code uses Write, Edit, or MultiEdit tools. Respects your `.shush.toml` configuration for comment preservation.
+
+## ⚙️ Configuration (.shush.toml)
+
+Smart comment preservation through configuration:
 
 ```bash
-# Remove all comments from a file
-shush file.py
-
-# Remove all comments from a directory
-shush src/
-
-# Process directories recursively
-shush src/ --recursive
-
-# Remove only line comments (// or #)
-shush file.js --inline
-
-# Remove only block comments (/* */)
-shush file.c --block
-
-# Preview what would be removed (dry run)
-shush script.sh --dry-run
-
-# Preview with context lines (like lazygit)
-shush script.sh --dry-run --context-lines 5
-
-# Create a backup before modifying
-shush config.lua --backup
-
-# Keep comment-only lines as empty lines (indentation always preserved)
-shush script.py --preserve-lines
-
-# Verbose output
-shush app.go --verbose
+shush --create-config    # Create example configuration
+shush --config          # Show current configuration
 ```
 
-### 🔀 Git-Aware Processing
+### Configuration File Example
+```toml
+# Patterns to preserve in comments (supports wildcards with *)
+preserve = [
+    "TODO:",
+    "FIXME:",
+    "@ts-ignore",
+    "eslint-",
+    "*IMPORTANT*",   # Wildcard: preserves any comment containing IMPORTANT
+    "*DEBUG*",       # Wildcard: preserves any comment containing DEBUG
+]
 
-```bash
-# Git-aware processing (only process changed lines)
-shush --staged                    # Clean comments from staged changes
-shush --unstaged                  # Clean comments from unstaged changes  
-shush --changes-only              # Clean comments from all changes
+# Number of context lines to show in preview mode (default: 3)
+context_lines = 3
 ```
 
-### ⚙️ Configuration Management
+### Configuration Discovery
+Shush searches for configuration in this order:
+1. `.shush.toml` (current directory)
+2. `.shush.toml` (git repository root)  
+3. `~/.config/.shush.toml` (global user config)
+
+## 🚫 File Exclusion (.shushignore)
+
+Exclude files and directories from processing:
 
 ```bash
-# Configuration management
-shush --create-config             # Create .shush.toml configuration
-shush --config                    # Show current configuration
-
-# Combine flags for complex operations
-shush src/ --recursive --inline --dry-run --verbose
-```
-
-### 🚫 File Exclusion (.shushignore)
-
-```bash
-# Create .shushignore file to exclude files/directories
+# Create .shushignore file
 echo "*.tmp" > .shushignore       # Ignore all .tmp files
 echo "build/" >> .shushignore     # Ignore build directory
 echo "test*.js" >> .shushignore   # Ignore test files
 echo "!important.js" >> .shushignore  # But keep important.js
-
-# Global ignore file (applies to all projects)
-echo "node_modules/" > ~/.config/.shushignore
-
-# .shushignore works everywhere
-shush src/ --recursive            # Respects ignore patterns
-shush --staged --dry-run          # Git operations respect ignore patterns
-shush specific-file.js            # Shows "File is in .shushignore, ignoring"
 ```
 
-## Supported Languages
+**Ignore File Locations:**
+- `.shushignore` (project root or current directory)
+- `~/.config/.shushignore` (global user ignore patterns)
 
-### Programming Languages
-| Language | Extensions | Line Comments | Block Comments |
-|----------|------------|---------------|----------------|
-| **C/C++** | `.c`, `.cpp`, `.cc`, `.cxx`, `.h`, `.hpp` | `//` | `/* */` |
-| **C#** | `.cs` | `//` | `/* */` |
-| **Dart** | `.dart` | `//` | `/* */` |
-| **Go** | `.go` | `//` | `/* */` |
-| **Java** | `.java` | `//` | `/* */` |
-| **JavaScript** | `.js`, `.jsx` | `//` | `/* */` |
-| **Kotlin** | `.kt`, `.kts` | `//` | `/* */` |
-| **Lua** | `.lua` | `--` | - |
-| **Perl** | `.pl` | `#` | - |
-| **PHP** | `.php` | `//` | `/* */` |
-| **Python** | `.py` | `#` | - |
-| **R** | `.r` | `#` | - |
-| **Ruby** | `.rb` | `#` | - |
-| **Rust** | `.rs` | `//` | `/* */` |
-| **Scala** | `.scala` | `//` | `/* */` |
-| **Swift** | `.swift` | `//` | `/* */` |
-| **TypeScript** | `.ts`, `.tsx` | `//` | `/* */` |
+## Usage
 
-### Web & Markup Languages
-| Language | Extensions | Line Comments | Block Comments |
-|----------|------------|---------------|----------------|
-| **CSS** | `.css` | - | `/* */` |
-| **HTML** | `.html`, `.htm` | - | `<!-- -->` |
-| **Less** | `.less` | `//` | `/* */` |
-| **Sass/SCSS** | `.sass`, `.scss` | `//` | `/* */` |
-| **SVG** | `.svg` | - | `<!-- -->` |
-| **XML** | `.xml` | - | `<!-- -->` |
+### Basic Operations
+```bash
+# Remove comments from file/directory
+shush file.py
+shush src/ --recursive
 
-### Shell & Config Languages  
-| Language | Extensions | Line Comments | Block Comments |
-|----------|------------|---------------|----------------|
-| **Bash** | `.bash` | `#` | - |
-| **Config** | `.conf`, `.cfg` | `#` | - |
-| **Dockerfile** | `dockerfile` | `#` | - |
-| **Fish** | `.fish` | `#` | - |
-| **INI** | `.ini` | `#`, `;` | - |
-| **Makefile** | `makefile` | `#` | - |
-| **PowerShell** | `.ps1` | `#` | - |
-| **Shell** | `.sh` | `#` | - |
-| **SQL** | `.sql` | `--` | `/* */` |
-| **TOML** | `.toml` | `#` | - |
-| **YAML** | `.yml`, `.yaml` | `#` | - |
-| **Zsh** | `.zsh` | `#` | - |
+# Preview changes
+shush script.sh --dry-run
+shush script.sh --dry-run --context-lines 5
 
-**Total: 40+ file extensions supported** across 30+ languages
+# Comment type filtering
+shush file.js --inline          # Only line comments
+shush file.c --block            # Only block comments
+
+# Backup and preserve options
+shush config.lua --backup
+shush script.py --preserve-lines  # Keep comment-only lines as empty
+```
+
+### Git-Aware Processing
+```bash
+# Process only changed lines
+shush --staged                   # Clean staged changes
+shush --unstaged                 # Clean unstaged changes  
+shush --changes-only             # Clean all changes (staged + unstaged + untracked)
+```
 
 ## Options
 
@@ -168,15 +118,15 @@ shush specific-file.js            # Shows "File is in .shushignore, ignoring"
 --dry-run          Show what would be removed without making changes
 --backup           Create backup files before modification
 --verbose          Show detailed output
---preserve-lines   Keep comment-only lines as empty lines (indentation always preserved)
--c, --context-lines Number of context lines to show in preview mode (default: from config)
+--preserve-lines   Keep comment-only lines as empty lines
+-c, --context-lines Number of context lines to show in preview mode
 
 # Git-aware flags
---changes-only Remove comments only from git changes (staged + unstaged + untracked)
+--changes-only Remove comments only from git changes
 --staged       Remove comments only from staged git changes
 --unstaged     Remove comments only from unstaged git changes
 
-# Configuration management
+# Configuration
 --config       Show current configuration and location
 --create-config Create example .shush.toml configuration file
 
@@ -185,9 +135,9 @@ shush specific-file.js            # Shows "File is in .shushignore, ignoring"
 --uninstall-hook Uninstall Claude Code hooks  
 --list-hooks     List current Claude Code hooks configuration
 --hook-status    Check if shush hooks are installed
---project      Use project scope for hook operations (default: user-wide)
+--project        Use project scope for hook operations (default: user-wide)
 
-# Utility flags
+# Utility
 --version      Show version information
 --llm          Show LLM-friendly usage guide
 --help         Show help message
@@ -196,194 +146,38 @@ shush specific-file.js            # Shows "File is in .shushignore, ignoring"
 ## Examples
 
 ### Python
-```bash
+```python
 # Before
 # This is a comment
 def hello():
     # Comment-only line
     print("Hello")  # Inline comment
 
-# After running: shush example.py (default - comment-only lines deleted)
+# After: shush example.py
 def hello():
     print("Hello")
 
-# After running: shush example.py --preserve-lines (comment-only lines kept as empty)
+# After: shush example.py --preserve-lines
 def hello():
     
     print("Hello")
-
-# Note: Code indentation is ALWAYS preserved in both modes
 ```
 
-### JavaScript
+### Git Workflow
 ```bash
-# Remove only line comments, preserve block comments
-shush app.js --inline
-
-# Remove only block comments, preserve line comments
-shush app.js --block
-```
-
-### Directory Processing
-```bash
-# Process all supported files in a directory
-shush src/ --verbose
-
-# Process directories recursively
-shush . --recursive --dry-run
-
-# Process only specific comment types in entire project
-shush . --recursive --inline --backup
-```
-
-### Git-Aware Processing
-```bash
-# Clean comments from staged changes before commit
-shush --staged --dry-run          # Preview changes
-shush --staged --backup           # Apply with backup
-
-# Clean comments from current work
-shush --unstaged --inline         # Remove only line comments
-shush --changes-only              # Clean all changes (staged + unstaged + untracked)
-
-# Pre-commit workflow
+# Preview and clean staged changes
 shush --staged --dry-run          # 1. Review what will be cleaned  
 shush --staged                    # 2. Clean staged changes
 git commit -m "Clean code"        # 3. Commit cleaned code
 ```
 
-### Line Structure Control
-```bash
-# Default: Comment-only lines are deleted entirely
-shush script.py                      # Clean removal
-
-# Keep comment-only lines as empty lines (preserves line numbers)
-shush script.py --preserve-lines     # Useful for debugging/line references
-
-# Code indentation is ALWAYS preserved regardless of flag
-shush python_code.py --preserve-lines --dry-run
-```
-
-### Backup and Preview
-```bash
-# Always create backup before modifying
-shush important.go --backup
-
-# See what would be removed first
-shush config.yaml --dry-run --verbose
-
-# Preview with context lines (lazygit style)
-shush large-file.js --dry-run --context-lines 5    # Show 5 lines around changes
-shush changes.py --dry-run -c 0                     # Show only changes (no context)
-shush code.go --dry-run                             # Use config default (3 lines)
-```
-
-## Comment Preservation Configuration 🎯
-
-Shush supports smart comment preservation through `.shush.toml` configuration files:
-
-```bash
-# Create example configuration file
-shush --create-config
-
-# Check current configuration  
-shush --config
-```
-
-### Configuration File (`.shush.toml`)
-
-```toml
-# Patterns to preserve in comments (supports wildcards with *)
-preserve = [
-    "TODO:",
-    "FIXME:",
-    "HACK:",
-    "XXX:",
-    "@ts-ignore",
-    "@ts-expect-error",
-    "eslint-",
-    "prettier-ignore",
-    "pylint:",
-    "mypy:",
-    "type: ignore",
-    "*IMPORTANT*",   # Wildcard: preserves any comment containing IMPORTANT
-    "*DEBUG*",       # Wildcard: preserves any comment containing DEBUG
-]
-
-# Number of context lines to show around changes in preview mode (default: 3)
-context_lines = 3
-```
-
-### Configuration Discovery
-
-Shush searches for configuration in this order:
-1. `.shush.toml` (current directory)
-2. `.shush.toml` (git repository root)  
-3. `~/.config/.shush.toml` (global user config)
-
-### File Exclusion Patterns (.shushignore)
-
-Create `.shushignore` files to exclude files and directories from processing:
-
-```bash
-# .shushignore syntax (like .gitignore)
-*.tmp              # Ignore all .tmp files
-*.log              # Ignore all .log files
-build/             # Ignore build directory and all contents
-node_modules/      # Ignore node_modules directory
-test*.js           # Ignore test files (wildcards supported)
-*build*.js         # Ignore any file with "build" in the name
-!important.js      # Negation: don't ignore important.js (even if matched above)
-
-# Comments and blank lines are ignored
-# This is a comment
-```
-
-**Ignore File Locations:**
-- `.shushignore` (project root or current directory)
-- `~/.config/.shushignore` (global user ignore patterns)
-- Both files are merged (global + project patterns)
-
-## Claude Code Integration 🤖
-
-Seamless integration with Claude Code via hooks - **available now**:
-
-```bash
-# Install automatic comment cleanup after Claude modifies files
-shush --install-hook               # User-wide (all projects)
-shush --install-hook --project     # Project-specific only
-
-# Manage hooks
-shush --hook-status                # Check installation status
-shush --list-hooks                 # Show all configured hooks
-shush --uninstall-hook             # Remove hooks
-
-# Hook scope conflict detection
-# Prevents duplicate execution when both user and project hooks exist
-```
-
-Once installed, comments will be automatically cleaned whenever Claude Code uses Write, Edit, or MultiEdit tools. Respects your `.shush.toml` configuration for comment preservation!
-
 ## How It Works
 
-shush uses optimized processing to remove comments while preserving code structure:
-
 - **Language Detection**: Auto-detects language from file extension
-- **String-Aware Parsing**: Preserves URLs and strings that contain comment markers (e.g., `"https://example.com"`)
+- **String-Aware Parsing**: Preserves URLs and strings containing comment markers
 - **Git-Aware Processing**: Only processes changed lines for surgical precision
 - **Smart Preservation**: Configurable comment preservation via `.shush.toml` patterns
-- **Unified In-Memory Processing**: 
-  - String-aware parsing for all file operations
-  - Line-based processing with comment preservation for all modes
 - **Claude Code Integration**: Automatic cleanup via PostToolUse hooks
-
-## Building from Source
-
-```bash
-git clone https://github.com/carlosarraes/shush.git
-cd shush
-go build -o shush
-```
 
 ## Requirements
 
